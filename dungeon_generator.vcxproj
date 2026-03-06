@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{2e4c3378-641c-44e9-9e65-244fd25abcf0}</ProjectGuid>
+    <RootNamespace>dungeongenerator</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Users\nateh\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\font_win32_tt;C:\Users\nateh\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\include;C:\VulkanSDK\1.3.268.0\Include;C:\Users\nateh\Documents\Visual Studio 2022\irrlicht\include</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>C:\Users\nateh\Documents\Visual Studio 2022\irrlicht\lib\Win64-visualStudio\Irrlicht.lib;C:\VulkanSDK\1.3.268.0\Lib\vulkan-1.lib;gdi32.lib;user32.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Users\nateh\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\font_win32_tt;C:\Users\nateh\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\include;C:\VulkanSDK\1.3.268.0\Include;C:\Users\nateh\Documents\Visual Studio 2022\irrlicht\include</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>C:\Users\nateh\Documents\Visual Studio 2022\irrlicht\lib\Win64-visualStudio\Irrlicht.lib;C:\VulkanSDK\1.3.268.0\Lib\vulkan-1.lib;gdi32.lib;user32.lib</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\font_win32_tt\agg_font_win32_tt.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_arc.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_arrowhead.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_bezier_arc.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_bspline.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_color_rgba.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_curves.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_embedded_raster_fonts.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_gsv_text.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_image_filters.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_line_aa_basics.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_line_profile_aa.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_rounded_rect.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_sqrt_tables.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_affine.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_double_path.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_single_path.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_warp_magnifier.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_bspline.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_contour.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_dash.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_markers_term.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_smooth_poly1.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_stroke.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_clip_polygon.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_clip_polyline.cpp" />
+    <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_segmentator.cpp" />
+    <ClCompile Include="CameraPanel.cpp" />
+    <ClCompile Include="CameraPanel2D.cpp" />
+    <ClCompile Include="CGUIButton.cpp" />
+    <ClCompile Include="CGUISkin.cpp" />
+    <ClCompile Include="edit_classes.cpp" />
+    <ClCompile Include="edit_env.cpp" />
+    <ClCompile Include="ex_gui_elements.cpp" />
+    <ClCompile Include="fonts.cpp" />
+    <ClCompile Include="GUI_tools.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Refl_Primitives.cpp" />
+    <ClCompile Include="scrollbar2.cpp" />
+    <ClCompile Include="tree_struct.cpp" />
+    <ClCompile Include="vkBufferObject.cpp" />
+    <ClCompile Include="vkComputePipeline.cpp" />
+    <ClCompile Include="vkDescriptors.cpp" />
+    <ClCompile Include="vkDevice.cpp" />
+    <ClCompile Include="vkModules.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CameraPanel.h" />
+    <ClInclude Include="CGUIButton.h" />
+    <ClInclude Include="CGUISkin.h" />
+    <ClInclude Include="edit_classes.h" />
+    <ClInclude Include="edit_env.h" />
+    <ClInclude Include="ex_gui_elements.h" />
+    <ClInclude Include="GUI_tools.h" />
+    <ClInclude Include="Reflection.h" />
+    <ClInclude Include="reflect_custom_types.h" />
+    <ClInclude Include="scrollbar2.h" />
+    <ClInclude Include="soa.h" />
+    <ClInclude Include="tkt_reflection_factory.h" />
+    <ClInclude Include="tkt_set.h" />
+    <ClInclude Include="tree_struct.h" />
+    <ClInclude Include="vkBufferObject.h" />
+    <ClInclude Include="vkComputePipeline.h" />
+    <ClInclude Include="vkDescriptors.h" />
+    <ClInclude Include="vkDevice.h" />
+    <ClInclude Include="vkModules.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
