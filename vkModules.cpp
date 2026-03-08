@@ -22,6 +22,25 @@ extern VkDevice vk_device = NULL;
 
 #define PRINTV(x) << x.X <<","<<x.Y<<","<<x.Z<<" "
 
+u64 random_number()
+{
+	static random_device dev;
+	static mt19937 rng(dev());
+
+	std::uniform_int_distribution<u64> dist(0, std::numeric_limits<u64>::max());
+
+	return dist(rng);
+}
+
+float random_f32()
+{
+	static random_device dev;
+	static mt19937 rng(dev());
+
+	std::uniform_real_distribution<float> dist(0, 1.0);
+
+	return dist(rng);
+}
 
 static std::vector<Vulkan_Module*>* all_vulkan_modules = NULL;
 
@@ -43,7 +62,7 @@ REFLECT_STRUCT3_BEGIN(vkBufferResource)
 	REFLECT_STRUCT_MEMBER(BufferMemory)
 REFLECT_STRUCT_END()
 
-REFLECT_STRUCT3_BEGIN(vkImageArrayResource)
+REFLECT_STRUCT3_BEGIN(vkTensorResource)
 	REFLECT_STRUCT_MEMBER(Image)
 REFLECT_STRUCT_END()
 
@@ -63,13 +82,13 @@ REFLECT_STRUCT3_BEGIN(vkImageSubresource)
 	REFLECT_STRUCT_MEMBER(ImageView)
 REFLECT_STRUCT_END()
 
-REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkImageArrayResource, reflect::input)
+REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkTensorResource, reflect::input)
 	INHERIT_FROM(reflect::input_type)
 	REFLECT_STRUCT_MEMBER(input_uid)
 	REFLECT_STRUCT_MEMBER(input_member)
 REFLECT_STRUCT_END()
 
-REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkImageArrayResource, reflect::output)
+REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkTensorResource, reflect::output)
 	INHERIT_FROM(reflect::output_type)
 	REFLECT_STRUCT_MEMBER(output_uids)
 	REFLECT_STRUCT_MEMBER(output_member);
@@ -133,7 +152,7 @@ namespace reflect
 		return &typeDesc;
 	}
 	/*
-	void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out)
+	void connect(output<vkTensorResource>* in, input<vkMultiImageResource>* out)
 	{
 		ImageArray_To_MultiImage_Module* link_module = (ImageArray_To_MultiImage_Module* )in->owner->vulkan->create_module<ImageArray_To_MultiImage_Module>();
 		
@@ -141,7 +160,7 @@ namespace reflect
 		connect(&link_module->images_out,out);
 	}
 
-	void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out)
+	void connect(output<vkMultiImageResource>* in, input<vkTensorResource>* out)
 	{
 		MultiImage_To_ImageArray_Module* link_module = (MultiImage_To_ImageArray_Module*)in->owner->vulkan->create_module<MultiImage_To_ImageArray_Module>();
 	
@@ -375,22 +394,43 @@ void Vulkan_Module::createComputePipeline(const char* shader_path)
 	pipeline = new ComputePipeline(m_device, shader_path, pipelineLayout);
 }
 
+void Vulkan_Module::createComputePipeline(const char* shader_path, VkPushConstantRange pushconstant)
+{
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType =
+		VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &(descriptorSetLayout->getDescriptorSetLayout());
+
+	pipelineLayoutInfo.pPushConstantRanges = &pushconstant;
+	pipelineLayoutInfo.pushConstantRangeCount = 1;
+
+	if (vkCreatePipelineLayout(m_device->getDevice(), &pipelineLayoutInfo, nullptr,
+		&pipelineLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create compute pipeline layout!");
+	}
+
+	pipeline = new ComputePipeline(m_device, shader_path, pipelineLayout);
+}
+
 //==================================================
-// Vulkan App
+// Tensor
 //
 
-vkImageArrayResource* Vulkan_App::create_imageArray(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type* output_binding)
+vkTensorResource* Vulkan_App::create_tensor(TensorDimension dimension, VkImageUsageFlags flags, reflect::output_type* output_binding)
 {
-	vkImageArrayResource* imgArray = new vkImageArrayResource(output_binding);
+	vkTensorResource* imgArray = new vkTensorResource(VK_FORMAT_R32_SFLOAT, dimension, output_binding);
 
-	m_device->createImageArray(n_layers, width, height, VK_FORMAT_R8G8B8A8_UNORM,
+	int n_layers = dimension.B * dimension.C;
+
+	m_device->createImageArray(n_layers, dimension.W, dimension.H, VK_FORMAT_R32_SFLOAT,
 		VK_IMAGE_TILING_OPTIMAL,
 		flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, imgArray->Image,
 		imgArray->ImageMemory);
 
-	imgArray->ImageView = m_device->createImageArrayView(n_layers, imgArray->Image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	imgArray->ImageView = m_device->createImageArrayView(n_layers, imgArray->Image, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	m_device->transitionImageArrayLayout(n_layers, imgArray->Image, VK_FORMAT_R8G8B8A8_UNORM,
+	m_device->transitionImageArrayLayout(n_layers, imgArray->Image, VK_FORMAT_R32_SFLOAT,
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
 	imgArray->n_images = n_layers;
@@ -400,6 +440,12 @@ vkImageArrayResource* Vulkan_App::create_imageArray(int n_layers, int width, int
 	resources.push_back(imgArray);
 
 	return imgArray;
+}
+
+
+vkTensorResource::vkTensorResource(VkFormat format, TensorDimension d, reflect::output_type* out) 
+	: vkMemoryResource(out), ImageFormat{ format }, dimensions{ d }
+{
 }
 
 vkMultiImageResource* Vulkan_App::create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type* output_binding)
@@ -778,14 +824,18 @@ void vkUniformBufferResource::writeToBuffer(VkDevice device, void* data, VkDevic
 	vkUnmapMemory(device, BufferMemory);
 }
 
-void vkImageArrayResource::destroy(VkDevice device)
+//=====================================================
+// Image Array
+//
+
+void vkTensorResource::destroy(VkDevice device)
 {
 	vkDestroyImageView(device, ImageView, nullptr);
 	vkDestroyImage(device, Image, nullptr);
 	vkFreeMemory(device, ImageMemory, nullptr);
 }
 
-VkDescriptorSetLayoutBinding vkImageArrayResource::getDescriptorSetLayout(u32 binding_no)
+VkDescriptorSetLayoutBinding vkTensorResource::getDescriptorSetLayout(u32 binding_no)
 {
 	VkDescriptorSetLayoutBinding Binding{};
 	Binding.binding = binding_no;
@@ -797,14 +847,13 @@ VkDescriptorSetLayoutBinding vkImageArrayResource::getDescriptorSetLayout(u32 bi
 	return Binding;
 }
 
-VkDescriptorImageInfo* vkImageArrayResource::getDescriptorBufferInfo()
+VkDescriptorImageInfo* vkTensorResource::getDescriptorBufferInfo()
 {
 	return imageStorageInfo.data();
 }
 
-void vkImageArrayResource::initializeDescriptorInfo()
+void vkTensorResource::initializeDescriptorInfo()
 {
-
 	imageStorageInfo.resize(n_images);
 
 	for (int i = 0; i < n_images; i++)

@@ -178,6 +178,8 @@
     <ClCompile Include="vkDescriptors.cpp" />
     <ClCompile Include="vkDevice.cpp" />
     <ClCompile Include="vkModules.cpp" />
+    <ClCompile Include="vkUtilModules.cpp" />
+    <ClCompile Include="vkWorkflow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CameraPanel.h" />
@@ -186,6 +188,7 @@
     <ClInclude Include="edit_classes.h" />
     <ClInclude Include="edit_env.h" />
     <ClInclude Include="ex_gui_elements.h" />
+    <ClInclude Include="global.h" />
     <ClInclude Include="GUI_tools.h" />
     <ClInclude Include="Reflection.h" />
     <ClInclude Include="reflect_custom_types.h" />
@@ -199,6 +202,10 @@
     <ClInclude Include="vkDescriptors.h" />
     <ClInclude Include="vkDevice.h" />
     <ClInclude Include="vkModules.h" />
+    <ClInclude Include="vkUtilModules.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="conv.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

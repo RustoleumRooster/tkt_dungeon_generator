@@ -1,0 +1,70 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(binding = 0, r32f) uniform readonly image2DArray weights;
+layout(binding = 1, r32f) uniform readonly image2DArray input_tensor;
+layout(binding = 2, r32f) uniform writeonly image2DArray output_tensor;
+layout(std140, binding = 3) buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+
+layout(push_constant) uniform PushConstants {
+	uint k;
+	uint s;
+	uint n;
+	uint c_in;
+	uint c_out;
+	uint h;
+	uint w;
+} pushConstants;
+
+
+shared float input_patch[16];
+
+//==================================================
+// Layout
+//
+
+layout (local_size_x = 32, local_size_y = 8, local_size_z = 1) in;
+
+void main()
+{
+	uint gix = gl_GlobalInvocationID.x;
+	uint giy = gl_GlobalInvocationID.y;
+	uint ix = gl_LocalInvocationID.x;
+	uint iy = gl_LocalInvocationID.y;
+	//gl_WorkGroupSize.x
+	//gl_WorkGroupID.x
+
+	//if(gix < 256)
+	//	results[gix].x = imageLoad(weights,ivec3(0,gix,1)).r;
+	results[0].x = pushConstants.k;
+	results[1].x = pushConstants.n;
+	results[2].x = pushConstants.c_in;
+	results[3].x = pushConstants.c_out;
+	results[4].x = pushConstants.h;
+	results[5].x = pushConstants.w;
+
+	for(int i=0; i<pushConstants.n; i++) //per input image
+	{
+		results[i].x = imageLoad(input_tensor,ivec3(0,0,i)).r;
+
+		//per x16 input channels
+		for(int ci_0=0; ci_0<pushConstants.c_in; ci_0 += 16)
+		{
+			//per x16 output channels
+			for(int co_0=0; co_0<pushConstants.c_out; co_0 += 16)
+			{
+				for(int ci_i=0;ci_i<16;ci_i+=1)
+				{}
+			}
+		}
+			
+	}
+
+return;
+}

@@ -446,6 +446,37 @@ void MyDevice::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
 	endSingleTimeCommands(commandBuffer);
 }
 
+void MyDevice::copyTensorToImageArray(VkBuffer buffer, VkImage image, TensorDimension dim) {
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+	VkBufferImageCopy region{};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = dim.B * dim.C;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = {
+		dim.W,
+		dim.H,
+		1 };
+
+	vkCmdCopyBufferToImage(
+		commandBuffer,
+		buffer,
+		image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&region
+	);
+
+	endSingleTimeCommands(commandBuffer);
+}
+
 void MyDevice::copyImageToBuffer(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) 
 {
 	copyImageLayerToBuffer(0, buffer, image, width, height);

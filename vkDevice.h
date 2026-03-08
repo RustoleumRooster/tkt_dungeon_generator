@@ -6,6 +6,8 @@
 #include <vector>
 #include <stdexcept>
 
+#include "global.h"
+
 
 using namespace irr;
 using namespace core;
@@ -117,6 +119,7 @@ public:
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+	void copyTensorToImageArray(VkBuffer buffer, VkImage image, TensorDimension dim);
 	void copyImageToBuffer(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void copyImage(VkImage image_to, VkImage image_from, uint32_t width, uint32_t height);
 	void copyImageToImageLayer(uint32_t, VkImage image_to, VkImage image_from, uint32_t width, uint32_t height);

@@ -168,6 +168,12 @@
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_segmentator.cpp">
       <Filter>Source Files\agg</Filter>
     </ClCompile>
+    <ClCompile Include="vkUtilModules.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkWorkflow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -227,5 +233,14 @@
     <ClInclude Include="soa.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkUtilModules.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="global.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="conv.comp" />
   </ItemGroup>
 </Project>

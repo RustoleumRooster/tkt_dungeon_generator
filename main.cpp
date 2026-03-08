@@ -12,37 +12,8 @@
 #include "edit_env.h"
 #include "fonts.h"
 #include "CameraPanel.h"
+#include "vkModules.h"
 
-
-struct aligned_float {
-	alignas(16) float x;
-};
-
-struct Convolution_Layer
-{
-	struct info_struct
-	{
-		int k = 4;
-		int stride = 2;
-		int padding = 1;
-		int channels_out = 64;
-		int channels_in = 64;
-		float bias = 0;
-	};
-
-	std::vector<aligned_float> weights;
-	std::vector<aligned_float> activations;
-	std::vector<aligned_float> outputs;
-
-	Convolution_Layer()
-	{
-		weights.resize(info.k * info.k * info.channels_out * info.channels_in);
-		activations.resize(info.k * info.k * info.channels_in);
-		outputs.resize(info.k * info.k * info.channels_out);
-	}
-
-	info_struct info;
-};
 
 using namespace irr;
 using namespace std;
@@ -136,6 +107,12 @@ int main()
 	core::rect<s32> windowsize_0 = windowsize;
 
 	gui_layout->resize(windowsize);
+
+	Vulkan_Workflow workflow;
+
+	Vulkan_App vulkan(driver);
+	workflow.make_default_workflow();
+	workflow.initialize_and_run(&vulkan);
 
 	while (device->run())
 		if (device->isWindowActive())

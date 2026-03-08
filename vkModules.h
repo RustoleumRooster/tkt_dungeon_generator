@@ -19,6 +19,7 @@
 #include <random>
 #include "tkt_set.h"
 #include "tkt_reflection_factory.h"
+#include "global.h"
 
 
 
@@ -33,17 +34,8 @@ class AGG_TT_Font;
 
 using namespace std;
 
-u64 random_number();
 
-u64 random_number()
-{
-	static random_device dev;
-	static mt19937 rng(dev());
 
-	std::uniform_int_distribution<u64> dist(0, std::numeric_limits<u64>::max());
-
-	return dist(rng);
-}
 
 namespace reflect 
 {
@@ -199,6 +191,9 @@ namespace reflect
 #define INHERIT_FROM(name) \
             typeDesc->inherited_type = (reflect::TypeDescriptor_Struct*)reflect::TypeResolver<name>::get();
 
+#define ALIAS(name) \
+            typeDesc->alias = name;
+
 	//========================================================================================
 	//  FACTORY CLASS
 	//
@@ -224,6 +219,10 @@ struct vkMemoryResource
 	virtual void destroy(VkDevice) = 0;
 	reflect::output_type* owner = NULL;
 	int status = RESOURCE_UNK;
+
+	virtual bool equal_dimensions(vkMemoryResource* other) {
+		return true;
+	}
 
 	virtual reflect::TypeDescriptor_Struct* GetDynamicReflection() = 0;
 };
@@ -288,20 +287,30 @@ struct vkImageSubresource
 	REFLECT3()
 };
 
-struct vkImageArrayResource : public vkMemoryResource
+struct vkTensorResource : public vkMemoryResource
 {
+	TensorDimension dimensions;
+
+	VkFormat ImageFormat;
 	VkImage Image;
 	VkDeviceMemory ImageMemory;
 	VkImageView ImageView;
 
 	int n_images = 0;
 
-	vkImageArrayResource(reflect::output_type* out) : vkMemoryResource(out) {}
+	vkTensorResource(VkFormat format, TensorDimension dimension, reflect::output_type* out);
 
 	void destroy(VkDevice);
 	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
 	VkDescriptorImageInfo* getDescriptorBufferInfo();
 	void initializeDescriptorInfo();
+	/*
+	virtual bool equal_dimensions(vkMemoryResource* other) {
+		return ((vkTensorResource*)(other))->dimensions.H == dimensions.H &&
+			 ((vkTensorResource*)(other))->dimensions.W == dimensions.W &&
+			((vkTensorResource*)(other))->dimensions.C == dimensions.C &&
+			((vkTensorResource*)(other))->dimensions.B == dimensions.B;
+	}*/
 
 	std::vector<VkDescriptorImageInfo> imageStorageInfo;
 
@@ -421,6 +430,10 @@ namespace reflect
 
 		virtual void consume(input_type*);
 
+		bool equal_dimensions(input<TY>* input_obj) {
+			return X->equal_dimensions(input_obj->X);
+		}
+
 		std::vector<u64> old_uids;	//not reflected
 		TY* X = NULL;						
 
@@ -432,8 +445,8 @@ namespace reflect
 	};
 
 
-	void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out);
-	void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out);
+	//void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out);
+	//void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out);
 
 	template <typename TY>
 	void connect( output<TY>* out, input<TY>* in)
@@ -448,6 +461,12 @@ namespace reflect
 
 		if (!out_module || !in_module)
 			return;
+
+		//if (!out->equal_dimensions(in))
+		//{
+		//	cout << "Connection Failed---\n";
+		//	return;
+		//}
 
 		reflect::TypeDescriptor_Struct* out_tD = out_module->GetDynamicReflection();
 		for (int i=0;i< out_tD->members.size();i++)
@@ -560,6 +579,7 @@ public:
 	virtual void initialize(Vulkan_App* vulkan);
 
 	void createComputePipeline(const char* shader_path);
+	void createComputePipeline(const char* shader_path, VkPushConstantRange);
 
 	virtual void run() {}
 	//bool load_resources();
@@ -606,7 +626,7 @@ public:
 	void createDescriptorPool();
 	void createCommandBuffers();
 
-	vkImageArrayResource* create_imageArray(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type*);
+	vkTensorResource* create_tensor(TensorDimension, VkImageUsageFlags flags, reflect::output_type*);
 	vkMultiImageResource* create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkImageResource* create_image(int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkBufferResource* create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags, reflect::output_type*);
