@@ -241,6 +241,12 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="conv.comp" />
+    <None Include="conv.comp">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="mean_var.comp">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="activate.comp" />
   </ItemGroup>
 </Project>

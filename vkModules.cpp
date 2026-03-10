@@ -769,14 +769,14 @@ VkDescriptorSetLayoutBinding vkBufferResource::getDescriptorSetLayout(u32 bindin
 	return Binding;
 }
 
-VkDescriptorBufferInfo vkBufferResource::getDescriptorBufferInfo()
+VkDescriptorBufferInfo* vkBufferResource::getDescriptorBufferInfo()
 {
-	VkDescriptorBufferInfo BufferInfo{};
+	//VkDescriptorBufferInfo BufferInfo{};
 	BufferInfo.buffer = Buffer;
 	BufferInfo.offset = 0;
 	BufferInfo.range = range;
 
-	return BufferInfo;
+	return &BufferInfo;
 }
 
 void vkBufferResource::destroy(VkDevice device)

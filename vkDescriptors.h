@@ -116,23 +116,23 @@ public:
 		setLayout{ setLayout }, pool{ pool } {
 	}
 
-	void writeBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo) {
+	void writeBuffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo) {
+
 		VkWriteDescriptorSet descriptorWrite{};
 
 		auto& bindingDescription = setLayout.bindings[binding];
-
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		//descriptorWrite.dstSet = descriptorSets[i];
 		descriptorWrite.dstBinding = binding;
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = bindingDescription.descriptorType;
 		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pBufferInfo = bufferInfo;
 
 		writes.push_back(descriptorWrite);
 	}
 
-	void writeTexelBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo, VkBufferView texelBufferView) {
+	void writeTexelBuffer(uint32_t binding, VkDescriptorBufferInfo *bufferInfo, VkBufferView texelBufferView) {
 		VkWriteDescriptorSet descriptorWrite{};
 
 		auto& bindingDescription = setLayout.bindings[binding];
@@ -143,7 +143,7 @@ public:
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = bindingDescription.descriptorType;
 		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pBufferInfo = bufferInfo;
 		descriptorWrite.pTexelBufferView = &texelBufferView;
 
 		writes.push_back(descriptorWrite);

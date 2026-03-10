@@ -1,0 +1,118 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input_tensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 1) writeonly buffer Output_buffer0
+{
+	float mean_buffer[];
+};
+
+layout(std430, binding = 2) writeonly buffer Output_buffer1
+{
+	float var_buffer[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+
+layout(push_constant) uniform PushConstants {
+	uint k;
+	uint s;
+	uint n;
+	uint c_in;
+	uint c_out;
+	uint img_size_in;
+	uint img_size_out;
+} co;
+
+
+//==================================================
+// Layout
+//
+
+layout(local_size_x = 256) in;  // 256 threads per WG
+
+shared float sg_partials[8];
+shared float shared_mean;
+
+void main()
+{
+	uint c = gl_WorkGroupID.x;      // one channel per WG
+	uint tid = gl_LocalInvocationID.x;
+	
+
+	// Mean
+	// each thread accumulates a partial sum over its strided slice
+
+	uint H = 32;
+	uint W = 32;
+	const uint C = 128;
+	const uint N = 16;
+
+	uint n_elements = N * H * W;    // 16384
+
+	float partial = 0.0;
+	for (uint i = tid; i < n_elements; i += 256) {
+		uint n = i / (H * W);
+		uint hw = i % (H * W);
+		uint h = hw / W;
+		uint w = hw % W;
+		partial += input_tensor[n * C * H * W + c * H * W + h * W + w];
+	}
+
+	if(subgroupElect())
+	{
+		sg_partials[gl_SubgroupID] = subgroupAdd(partial);
+	}
+
+	barrier();
+
+	float mean = 0.0;
+
+	if (tid == 0) 
+	{
+		
+		for(int i=0; i<8; i++)
+		{
+			mean += sg_partials[i];
+		}
+		mean_buffer[c] = mean;
+		shared_mean = mean;
+	}
+
+	barrier();
+
+	mean = shared_mean;
+
+	//Variance
+
+	partial = 0.0;
+	for (uint i = tid; i < n_elements; i += 256) {
+		uint n = i / (H * W);
+		uint hw = i % (H * W);
+		uint h = hw / W;
+		uint w = hw % W;
+		partial += pow(input_tensor[n * C * H * W + c * H * W + h * W + w] - mean,2.0);
+	}
+
+	if (tid == 0) 
+	{
+		mean = 0.0;
+		for(int i=0; i<8; i++)
+		{
+			mean += sg_partials[i];
+		}
+		var_buffer[c] = mean;
+	}
+
+	return;
+}

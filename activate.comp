@@ -1,0 +1,49 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) buffer OutputBuffer
+{
+	float outputb[];
+};
+
+layout(std430, binding = 1) readonly buffer MeanBuffer
+{
+	float mean[];
+};
+
+layout(std430, binding = 2) readonly buffer VarBuffer
+{
+	float var[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+layout(local_size_x = 256) in;
+
+uint C = 128;
+uint W = 32;
+uint H = 32;
+
+void main()
+{
+	uint global_id = gl_GlobalInvocationID.x;  // flat index into N*C*H*W
+	uint c = (global_id / (H * W)) % C;        // which channel
+
+	float inv_std = 1.0 / sqrt(var[c] + pow(1.0,-5.0));
+	//float scale   = gamma[c] * inv_std;
+	float scale   = 1.0 * inv_std;
+	//float offset  = beta[c] - mean[c] * scale;
+	float offset  = 0.0 - mean[c] * scale;
+
+	float y = outputb[global_id] * scale + offset;
+	//y = y > 0.0 ? y : y * 0.2;  // leaky relu
+
+	//activation
+
+	outputb[global_id] = y;
+}

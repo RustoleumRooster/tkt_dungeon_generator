@@ -61,8 +61,9 @@ struct Dummy_Consumer : public Vulkan_Module
 
 struct Convolution_Module : public Vulkan_Module
 {
-	TensorDimension input_dimensions{ 16,16,32,32 };
-	TensorDimension output_dimensions{ 16,16,16,16 };
+	TensorDimension input_dimensions{ 16,128,64,64 };
+	TensorDimension output_dimensions{ 16,128,32,32 };
+	TensorDimension weight_dimensions{ 128,128,4,4 };
 
 	Convolution_Module()
 	{
@@ -76,8 +77,8 @@ struct Convolution_Module : public Vulkan_Module
 		u32 n;
 		u32 c_in;
 		u32 c_out;
-		u32 h;
-		u32 w;
+		u32 img_size_in;
+		u32 img_size_out;
 	};
 
 	pushconstant_struct pushconstants
@@ -102,18 +103,112 @@ struct Convolution_Module : public Vulkan_Module
 	void execute();
 	void read_results();
 	void cleanup();
-	/*
-	void resize()
-	{
-		weights.resize(info.k * info.k * input_dimensions.C * output_dimensions.C);
-		activations.resize(info.k * info.k * input_dimensions.C);
-		outputs.resize(info.k * info.k * output_dimensions.C);
-	}*/
 
 	reflect::input<vkBufferResource> weights;
 	reflect::input<vkBufferResource> input_tensor;
+	reflect::input<vkBufferResource> output_dummy;
 	reflect::output<vkBufferResource> output_tensor;
 	reflect::input<vkBufferResource> scratchpad;
+
+	REFLECT_VKMOD()
+};
+
+struct Normalization_Module : public Vulkan_Module
+{
+	TensorDimension input_dimensions{ 16,128,32,32 };
+
+
+	Normalization_Module()
+	{
+		set_ptrs();
+	}
+
+	struct pushconstant_struct
+	{
+		u32 k;
+		u32 s;
+		u32 n;
+		u32 c_in;
+		u32 c_out;
+		u32 img_size_in;
+		u32 img_size_out;
+	};
+
+	pushconstant_struct pushconstants
+	{
+		4,//k
+		2,//s
+		16,//n
+		16,//c_in
+		16,//c_out
+		32,//h
+		32,//uw
+	};
+
+	//void createImages();
+	void createBuffer();
+	void createDescriptorSets();
+	void createDescriptorSetLayout();
+
+	virtual void run();
+	void execute();
+	void read_results();
+	void cleanup();
+
+	reflect::input<vkBufferResource> input_tensor;
+	reflect::output<vkBufferResource> mean_buffer;
+	reflect::output<vkBufferResource> var_buffer;
+
+	reflect::input<vkBufferResource> scratchpad;
+
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+	REFLECT_VKMOD()
+};
+
+
+struct Activation_Module : public Vulkan_Module
+{
+	Activation_Module()
+	{
+		set_ptrs();
+	}
+
+	struct pushconstant_struct
+	{
+		u32 k;
+		u32 s;
+		u32 n;
+		u32 c_in;
+		u32 c_out;
+		u32 img_size_in;
+		u32 img_size_out;
+	};
+
+	pushconstant_struct pushconstants
+	{
+		4,//k
+		2,//s
+		16,//n
+		128,//c_in
+		128,//c_out
+		32,//h
+		32,//uw
+	};
+
+	void createDescriptorSets();
+	void createDescriptorSetLayout();
+
+	virtual void run();
+	void execute();
+	void cleanup();
+
+	reflect::input<vkBufferResource> input_tensor;
+	reflect::input<vkBufferResource> mean_buffer;
+	reflect::input<vkBufferResource> var_buffer;
+	reflect::input<vkBufferResource> results_buffer;
+
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
 	REFLECT_VKMOD()
 };

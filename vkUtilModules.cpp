@@ -53,27 +53,7 @@ void Create_Tensor_Module::createImages(bool random_data)
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		&output_tensor);
 
-	if (random_data)
-	{
-		MyBufferObject stagingBuffer(m_device, sizeof(float), n_indices, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		f32* data = new f32[n_indices];
-
-		int stride = dimensions.H * dimensions.W;
-		for (int i = 0; i < dimensions.B * dimensions.C; i++)
-		{
-			for (int j = 0; j < stride; j++)
-				data[stride * i + j] = i;
-		}
-
-		stagingBuffer.writeToBuffer((void*)data);
-
-		m_device->copyBuffer(stagingBuffer.getBuffer(), output_tensor.X->Buffer, bufferSize);
-
-		delete[] data;
-	}
+	output_tensor.X->range = bufferSize;
 
 	//////////////////////
 
@@ -99,9 +79,11 @@ REFLECT_VKMOD_BEGIN(Convolution_Module)
 	ALIAS("Convolution Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(output_tensor)
+	REFLECT_STRUCT_MEMBER(output_dummy)
 	REFLECT_STRUCT_MEMBER(input_tensor)
 	REFLECT_STRUCT_MEMBER(weights)
 	REFLECT_STRUCT_MEMBER(scratchpad)
+	REFLECT_STRUCT_MEMBER_FORWARD(output_dummy, output_tensor)
 REFLECT_VKMOD_END()
 
 void Convolution_Module::run()
@@ -116,6 +98,12 @@ void Convolution_Module::run()
 
 	createComputePipeline("shaders/conv.spv", push_constant);
 	//createComputePipeline("shaders/conv.spv");
+
+	//even though it's an "output", need to create the memory somewhere. Just take it as ant
+	
+	output_tensor.X = output_dummy.X;
+	output_tensor.ready = true;
+
 	execute();
 	read_results();
 	cleanup();
@@ -149,13 +137,98 @@ void Convolution_Module::createDescriptorSetLayout()
 }
 
 void Convolution_Module::createImages()
-{
+{	
+	/*
 	int n_indices = output_dimensions.B * output_dimensions.C * output_dimensions.H * output_dimensions.W;
 	VkDeviceSize bufferSize = sizeof(float) * n_indices;
+	{
+		
 
-	output_tensor.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		&output_tensor);
+		output_tensor.X = vulkan->create_buffer(bufferSize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			&output_tensor);
+
+		output_tensor.X->range = bufferSize;
+	}*/
+
+	//=============================================
+
+
+	{
+		int n_indices = weight_dimensions.B * weight_dimensions.C * weight_dimensions.H * weight_dimensions.W;
+		VkDeviceSize bufferSize = sizeof(float) * n_indices;
+
+		MyBufferObject stagingBuffer(m_device, sizeof(float), n_indices, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+		f32* data = new f32[n_indices];
+
+		int outer_stride = weight_dimensions.C * weight_dimensions.H * weight_dimensions.W;
+		for (int n = 0; n < weight_dimensions.B; n++)
+		{
+			for (int k = 0; k < weight_dimensions.C; k++)
+				for (int i = 0; i < weight_dimensions.H; i++)
+					for (int j = 0; j < weight_dimensions.W; j++)
+					
+					{
+						f32 f;
+						if (k == 5)
+							f = random_f32();
+						else
+							f = 0;
+
+						data[(outer_stride * n) +
+							(weight_dimensions.W * i) +
+							(weight_dimensions.H * weight_dimensions.W * k) + j] = 1.0;
+					}
+		}
+
+
+		stagingBuffer.writeToBuffer((void*)data);
+
+		m_device->copyBuffer(stagingBuffer.getBuffer(), weights.X->Buffer, bufferSize);
+
+		delete[] data;
+	}
+
+	{
+		int n_indices = input_dimensions.B * input_dimensions.C * input_dimensions.H * input_dimensions.W;
+		VkDeviceSize bufferSize = sizeof(float) * n_indices;
+
+		MyBufferObject stagingBuffer(m_device, sizeof(float), n_indices, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+		f32* data = new f32[n_indices];
+
+		int outer_stride = input_dimensions.C * input_dimensions.H * input_dimensions.W;
+		for (int n = 0; n < input_dimensions.B; n++)
+		{
+			for (int k = 0; k < input_dimensions.C; k++)
+				for (int i = 0; i < input_dimensions.H; i++)
+					for (int j = 0; j < input_dimensions.W; j++)
+					{
+						f32 f;
+
+						if (k == 5)
+							f = i;
+						else
+							f = 0;
+
+						data[(outer_stride * n) +
+							(input_dimensions.W * i) +
+							(input_dimensions.H * input_dimensions.W * k) + j] = random_f32();
+					}
+		}
+
+
+		stagingBuffer.writeToBuffer((void*)data);
+
+		m_device->copyBuffer(stagingBuffer.getBuffer(), input_tensor.X->Buffer, bufferSize);
+
+		delete[] data;
+	}
 }
 
 void Convolution_Module::execute()
@@ -173,10 +246,12 @@ void Convolution_Module::execute()
 	uint32_t work_length = 1;
 	uint32_t work_height = 1;
 
-	uint32_t n_WorkGroups_x = 1;
-	uint32_t n_WorkGroups_y = 1;
+	uint32_t n_WorkGroups_x = 32; //use output image size. Each WG writes to one output pixel.
+	uint32_t n_WorkGroups_y = 32;
+	uint32_t n_WorkGroups_z = 1;
 
 	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
@@ -235,242 +310,254 @@ void Convolution_Module::cleanup()
 	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
 }
 
-/*
-REFLECT_VKMOD_BEGIN(MultiImage_Copy_Module)
-	ALIAS("Copy Images")
+
+//============================================================
+// Normalization Module
+//
+
+REFLECT_VKMOD_BEGIN(Normalization_Module)
+	ALIAS("Normalization Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(images_in)
-	REFLECT_STRUCT_MEMBER(images_out)
+	REFLECT_STRUCT_MEMBER(input_tensor)
+	REFLECT_STRUCT_MEMBER(mean_buffer)
+	REFLECT_STRUCT_MEMBER(var_buffer)
+	REFLECT_STRUCT_MEMBER(scratchpad)
 REFLECT_VKMOD_END()
 
-void MultiImage_Copy_Module::run()
+void Normalization_Module::run()
 {
-	for (int i = 0; i < configuration->lightmap_dimensions.size(); i++)
-	{
-		VkDeviceSize width = configuration->lightmap_dimensions[i].Width;
-		VkDeviceSize height = configuration->lightmap_dimensions[i].Height;
+	createBuffer();
+	createDescriptorSetLayout();
 
-		VkImage img;
-		VkDeviceMemory imgMemory;
-		VkImageView imgView;
+	VkPushConstantRange push_constant;
+	push_constant.offset = 0;
+	push_constant.size = sizeof(pushconstant_struct);
+	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-		m_device->createImage(width, height, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, img,
-			imgMemory);
+	createComputePipeline("shaders/mean_var.spv", push_constant);
+	//createComputePipeline("shaders/conv.spv");
 
-		imgView = m_device->createImageView(img, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	//even though it's an "output", need to create the memory somewhere. Just take it as ant
+	//output_tensor.X = output_dummy.X;
 
-		m_device->transitionImageLayout(img, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	execute();
+	read_results();
+	cleanup();
+}
 
-		m_device->transitionImageLayout(images_in.X->Images[i].Image, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
-		m_device->copyImage(img, images_in.X->Images[i].Image, width, height);
+void Normalization_Module::createBuffer()
+{
+	int n_indices = 128;
+	VkDeviceSize bufferSize = sizeof(float) * n_indices;
 
-		m_device->transitionImageLayout(img, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+	mean_buffer.X = vulkan->create_buffer(bufferSize,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		&mean_buffer);
 
+	mean_buffer.X->range = bufferSize;
+
+	var_buffer.X = vulkan->create_buffer(bufferSize,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		&var_buffer);
+
+	var_buffer.X->range = bufferSize;
+}
+
+void Normalization_Module::createDescriptorSets()
+{
+	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
+
+	descriptorSets.resize(1);
+
+	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
+	writer.writeBuffer(3, scratchpad.X->getDescriptorBufferInfo());
+
+	writer.build(descriptorSets[0]);
+}
+
+void Normalization_Module::createDescriptorSetLayout()
+{
+	bindings.resize(3);
+	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
+	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
+	bindings[3] = scratchpad.X->getDescriptorSetLayout(3);
+
+	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
+}
+
+void Normalization_Module::execute()
+{
+	createDescriptorSets();
+
+	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		pipeline->getPipeline());
+
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
+		&descriptorSets[0], 0, 0);
+
+	uint32_t work_length = 1;
+	uint32_t work_height = 1;
+
+	uint32_t n_WorkGroups_x = 128; //per channel
+	uint32_t n_WorkGroups_y = 1;
+	uint32_t n_WorkGroups_z = 1;
+
+	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+
+
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+
+	m_device->endSingleTimeCommands(commandBuffer);
+
+	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
+
+	vkDeviceWaitIdle(m_device->getDevice());
+}
+
+void Normalization_Module::read_results()
+{
+	aligned_vec3* hit_results = NULL;
+
+	uint16_t bSize = 256 * 2;
+	VkDeviceSize bufferSize = sizeof(aligned_vec3) * bSize;
+
+	hit_results = new aligned_vec3[bSize];
+	for (int i = 0; i < bSize; i++) {
+		hit_results[i].V = vector3df{ 0,0,0 };
 	}
 
-	images_out.ready = true;
-}
-*/
+	MyBufferObject stagingBuffer(m_device, sizeof(aligned_vec3), 256 * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
 
-//==========================================
-// Create Texture Images
-//
+	m_device->copyBuffer(scratchpad.X->Buffer, stagingBuffer.getBuffer(), sizeof(aligned_vec3) * 256 * 2);
 
+	stagingBuffer.readFromBuffer((void*)hit_results);
 
-//==========================================
-// Load Textures
-//
-/*
-void Load_Textures_Module::initialize(Vulkan_App* vulkan)
-{
-	Vulkan_Module::initialize(vulkan);
-	configuration = vulkan->configuration;
-	driver = vulkan->driver;
-}
-
-void Load_Textures_Module::run()
-{
-	createImages();
-}
-
-void Load_Textures_Module::createImages()
-{
-	for (int i = 0; i < configuration->lightmap_dimensions.size(); i++)
+	for (int i = 0; i < 256; i++)
 	{
-		VkDeviceSize width = configuration->lightmap_dimensions[i].Width;
-		VkDeviceSize height = configuration->lightmap_dimensions[i].Height;
-		VkDeviceSize imgSize = width * height * 4;
-
-		VkImage img;
-		VkDeviceMemory imgMemory;
-		VkImageView imgView;
-
-		MyBufferObject stagingBuffer(m_device, imgSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		irr::video::IImage* pImage = driver->createImage(textures[i], core::vector2di(0, 0), configuration->lightmap_dimensions[i]);
-		pImage->flip(true, false);
-
-		irr::u8* imgDataPtr = (irr::u8*)pImage->lock();
-
-		stagingBuffer.writeToBuffer(imgDataPtr);
-
-		pImage->unlock();
-		pImage->drop();
-		m_device->createImage(width, height, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, img,
-			imgMemory);
-
-		m_device->transitionImageLayout(img, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-		//VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-
-		imgView = m_device->createImageView(img, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-
-		lightmapImages.push_back(img);
-		lightmapsMemory.push_back(imgMemory);
-		lightmapImageViews.push_back(imgView);
-
-		m_device->copyBufferToImage(stagingBuffer.getBuffer(), lightmapImages[i], static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-		m_device->transitionImageLayout(img, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-	}
-}
-
-
-
-//==========================================
-// Download Textures
-//
-
-REFLECT_VKMOD_BEGIN(Download_Textures_Module)
-	ALIAS("Download Textures")
-	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(images_in)
-REFLECT_VKMOD_END()
-
-void Download_Textures_Module::run()
-{
-	//if (!load_resources())
-	//	return;
-
-	for (int i = 0; i < configuration->lightmap_dimensions.size(); i++)
-	{
-		VkDeviceSize width = configuration->lightmap_dimensions[i].Width;
-		VkDeviceSize height = configuration->lightmap_dimensions[i].Height;
-		VkDeviceSize imgSize = width * height * 4;
-
-		MyBufferObject stagingBuffer(m_device, imgSize, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		m_device->transitionImageLayout(images_in.X->Images[i].Image, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-		m_device->copyImageToBuffer(stagingBuffer.getBuffer(), images_in.X->Images[i].Image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-		irr::video::IImage* pImage = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(width, height));
-
-		irr::u8* imgDataPtr = (irr::u8*)pImage->lock();
-
-		stagingBuffer.readFromBuffer(imgDataPtr);
-
-		if (bFlip)
-			pImage->flip(true, false);
-
-		irr::video::ITexture* tex = driver->addTexture(irr::io::path("image name"), pImage);
-		textures.push_back(tex);
-
-		pImage->unlock();
-		pImage->drop();
-
-		m_device->transitionImageLayout(images_in.X->Images[i].Image, VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		cout << hit_results[i].V.X << " ";
+		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
 	}
 
-	//for (auto& img : images_in.X->Images)
-	//	img.destroy(m_device->getDevice());
-}
+	cout << "\n";
 
-//==========================================
-// Download Textures
-//
+	for (int i = 0; i < 10; i++)
+	{
+		//cout PRINTV(hit_results[i].V) << "\n";
+	}
 
-REFLECT_VKMOD_BEGIN(Download_TextureArray_Module)
-	ALIAS("Download Textures [Array]")
-	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(images_in)
-REFLECT_VKMOD_END()
-
-void Download_TextureArray_Module::run()
-{
+	delete[] hit_results;
 	
-	m_device->transitionImageArrayLayout(images_in.X->n_images,images_in.X->Image, VK_FORMAT_R8G8B8A8_UNORM,
-		VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-	for (int i = 0; i < configuration->lightmap_dimensions.size(); i++)
-	{
-		VkDeviceSize width = configuration->lightmap_dimensions[i].Width;
-		VkDeviceSize height = configuration->lightmap_dimensions[i].Height;
-		VkDeviceSize imgSize = width * height * 4;
-
-		MyBufferObject stagingBuffer(m_device, imgSize, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		m_device->copyImageLayerToBuffer(i,stagingBuffer.getBuffer(), images_in.X->Image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-		irr::video::IImage* pImage = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(width, height));
-
-		irr::u8* imgDataPtr = (irr::u8*)pImage->lock();
-
-		stagingBuffer.readFromBuffer(imgDataPtr);
-
-		if (bFlip)
-			pImage->flip(true, false);
-
-		irr::video::ITexture* tex = driver->addTexture(irr::io::path("image name"), pImage);
-		textures.push_back(tex);
-
-		pImage->unlock();
-		pImage->drop();
-
-		//m_device->transitionImageLayout(images_in.X->Image, VK_FORMAT_R8G8B8A8_UNORM,
-		//	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	}
-	
-	//images_in.X->destroy(m_device->getDevice());
 }
 
-
-void MultiImage_Copy_Module::initialize(Vulkan_App* vulkan)
+void Normalization_Module::cleanup()
 {
-	Vulkan_Module::initialize(vulkan);
+	descriptorSetLayout->cleanup();
+
+	pipeline->cleanup();
+
+	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
 }
 
-void Download_Textures_Module::initialize(Vulkan_App* vulkan)
+
+//============================================================
+// Activation Module
+//
+
+REFLECT_VKMOD_BEGIN(Activation_Module)
+	ALIAS("Activation Layer")
+	INHERIT_FROM(Vulkan_Module)
+	REFLECT_STRUCT_MEMBER(input_tensor)
+	REFLECT_STRUCT_MEMBER(mean_buffer)
+	REFLECT_STRUCT_MEMBER(var_buffer)
+	REFLECT_STRUCT_MEMBER(results_buffer)
+REFLECT_VKMOD_END()
+
+void Activation_Module::run()
 {
-	Vulkan_Module::initialize(vulkan);
-	driver = vulkan->driver;
+	createDescriptorSetLayout();
+
+	VkPushConstantRange push_constant;
+	push_constant.offset = 0;
+	push_constant.size = sizeof(pushconstant_struct);
+	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	createComputePipeline("shaders/activate.spv", push_constant);
+
+	execute();
+	cleanup();
 }
 
-void Download_TextureArray_Module::initialize(Vulkan_App* vulkan)
+void Activation_Module::createDescriptorSets()
 {
-	Vulkan_Module::initialize(vulkan);
-	driver = vulkan->driver;
+	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
+
+	descriptorSets.resize(1);
+
+	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
+	writer.writeBuffer(3, results_buffer.X->getDescriptorBufferInfo());
+
+	writer.build(descriptorSets[0]);
 }
-*/
+
+void Activation_Module::createDescriptorSetLayout()
+{
+	bindings.resize(4);
+	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
+	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
+	bindings[3] = results_buffer.X->getDescriptorSetLayout(3);
+
+	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
+}
+
+void Activation_Module::execute()
+{
+	createDescriptorSets();
+
+	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		pipeline->getPipeline());
+
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
+		&descriptorSets[0], 0, 0);
+
+	uint32_t n_WorkGroups_x = 128;
+	uint32_t n_WorkGroups_y = 1;
+	uint32_t n_WorkGroups_z = 1;
+
+	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+
+	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+
+	m_device->endSingleTimeCommands(commandBuffer);
+
+	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
+
+	vkDeviceWaitIdle(m_device->getDevice());
+}
+
+void Activation_Module::cleanup()
+{
+	descriptorSetLayout->cleanup();
+
+	pipeline->cleanup();
+
+	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
+}
 
 

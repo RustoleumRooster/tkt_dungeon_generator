@@ -252,10 +252,11 @@ struct vkBufferResource : public vkMemoryResource
 	VkBuffer Buffer;
 	VkDeviceMemory BufferMemory;
 	u32 range = 0;
+	VkDescriptorBufferInfo BufferInfo;
 
 	vkBufferResource(reflect::output_type* out) : vkMemoryResource(out) {}
 	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
-	VkDescriptorBufferInfo getDescriptorBufferInfo();
+	VkDescriptorBufferInfo* getDescriptorBufferInfo();
 
 	void destroy(VkDevice);
 
