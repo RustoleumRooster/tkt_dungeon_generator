@@ -85,7 +85,7 @@ void main()
 		{
 			mean += sg_partials[i];
 		}
-		mean_buffer[c] = mean;
+		mean_buffer[c] = mean / float(n_elements);
 		shared_mean = mean;
 	}
 
@@ -111,7 +111,7 @@ void main()
 		{
 			mean += sg_partials[i];
 		}
-		var_buffer[c] = mean;
+		var_buffer[c] = mean / float(n_elements);;
 	}
 
 	return;

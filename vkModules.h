@@ -129,6 +129,21 @@ namespace reflect
 #define REFLECT_VKMOD_FLAG(f) \
 			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= f;
 
+//#define REFLECT_STRUCT_MEMBER_FLAG(flag)
+
+#define REFLECT_VKMOD_FLAG_TRANSITION_MODULE	2
+
+#define REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY	2
+
+#define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
+			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
+
+#define INHERIT_FROM(name) \
+            typeDesc->inherited_type = (reflect::TypeDescriptor_Struct*)reflect::TypeResolver<name>::get();
+
+#define ALIAS(name) \
+            typeDesc->alias = name;
+
 #define REFLECT3() \
         virtual reflect::TypeDescriptor_Struct* GetDynamicReflection(); \
         friend struct reflect::DefaultResolver; \
@@ -185,14 +200,6 @@ namespace reflect
             typeDesc->inherited_type = NULL; \
             typeDesc->name_func = NULL; \
             typeDesc->alias = typeDesc->name;
-
-#define REFLECT_VKMOD_FLAG_TRANSITION_MODULE	2
-
-#define INHERIT_FROM(name) \
-            typeDesc->inherited_type = (reflect::TypeDescriptor_Struct*)reflect::TypeResolver<name>::get();
-
-#define ALIAS(name) \
-            typeDesc->alias = name;
 
 	//========================================================================================
 	//  FACTORY CLASS
@@ -252,6 +259,7 @@ struct vkBufferResource : public vkMemoryResource
 	VkBuffer Buffer;
 	VkDeviceMemory BufferMemory;
 	u32 range = 0;
+	u32 used = 0;
 	VkDescriptorBufferInfo BufferInfo;
 
 	vkBufferResource(reflect::output_type* out) : vkMemoryResource(out) {}
@@ -288,36 +296,6 @@ struct vkImageSubresource
 	REFLECT3()
 };
 
-struct vkTensorResource : public vkMemoryResource
-{
-	TensorDimension dimensions;
-
-	VkFormat ImageFormat;
-	VkImage Image;
-	VkDeviceMemory ImageMemory;
-	VkImageView ImageView;
-
-	int n_images = 0;
-
-	vkTensorResource(VkFormat format, TensorDimension dimension, reflect::output_type* out);
-
-	void destroy(VkDevice);
-	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
-	VkDescriptorImageInfo* getDescriptorBufferInfo();
-	void initializeDescriptorInfo();
-	/*
-	virtual bool equal_dimensions(vkMemoryResource* other) {
-		return ((vkTensorResource*)(other))->dimensions.H == dimensions.H &&
-			 ((vkTensorResource*)(other))->dimensions.W == dimensions.W &&
-			((vkTensorResource*)(other))->dimensions.C == dimensions.C &&
-			((vkTensorResource*)(other))->dimensions.B == dimensions.B;
-	}*/
-
-	std::vector<VkDescriptorImageInfo> imageStorageInfo;
-
-	REFLECT3()
-};
-
 struct vkMultiImageResource : public vkMemoryResource
 {
 	std::vector<vkImageSubresource> Images;
@@ -333,6 +311,7 @@ struct vkMultiImageResource : public vkMemoryResource
 };
 
 class Vulkan_Module;
+class Vulkan_App;
 std::vector<Vulkan_Module*>* get_all_vk_modules();
 
 Vulkan_Module* get_module_by_uid(std::vector<Vulkan_Module*>*, u64 uid);
@@ -350,6 +329,7 @@ namespace reflect
 
 	struct inout_gui_type
 	{
+		Vulkan_App* vulkan = NULL;
 		Hookup_GUI_Element* m_gui_element = NULL;
 	};
 
@@ -392,6 +372,7 @@ namespace reflect
 		//not reflected
 		//
 		virtual void consume(input_type*) = 0;
+		virtual void make_buffer() = 0;
 		Vulkan_Module* owner = NULL;
 		std::vector<input_type*> dest_inputs;	
 		bool ready = false;						
@@ -430,11 +411,13 @@ namespace reflect
 		output() {}
 
 		virtual void consume(input_type*);
+		virtual void make_buffer();
 
 		bool equal_dimensions(input<TY>* input_obj) {
 			return X->equal_dimensions(input_obj->X);
 		}
 
+		TensorDimension dimensions; //not reflected
 		std::vector<u64> old_uids;	//not reflected
 		TY* X = NULL;						
 
@@ -508,6 +491,8 @@ namespace reflect
 		X->consume(in);
 	}
 
+	
+
 	template <typename TY>
 	void output<TY>::push()
 	{
@@ -578,6 +563,7 @@ public:
 	Vulkan_Module();
 
 	virtual void initialize(Vulkan_App* vulkan);
+	virtual void setDimensions() {};
 
 	void createComputePipeline(const char* shader_path);
 	void createComputePipeline(const char* shader_path, VkPushConstantRange);
@@ -627,7 +613,6 @@ public:
 	void createDescriptorPool();
 	void createCommandBuffers();
 
-	vkTensorResource* create_tensor(TensorDimension, VkImageUsageFlags flags, reflect::output_type*);
 	vkMultiImageResource* create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkImageResource* create_image(int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkBufferResource* create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags, reflect::output_type*);

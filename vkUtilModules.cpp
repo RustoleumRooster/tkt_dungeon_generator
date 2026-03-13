@@ -9,8 +9,18 @@
 //#include "my_reflected_nodes.h"
 #include <vulkan/vulkan.h>
 #include "reflect_custom_types.h"
+#include <chrono>
 //#include "vkAreaLightModule.h"
 //#include "vkBouncedLightModule.h"
+
+std::chrono::steady_clock::time_point startTime;
+std::chrono::steady_clock::time_point currentTime;
+float passedTime;
+
+#define START_TIMER() startTime = std::chrono::high_resolution_clock::now();
+#define PRINT_TIMER(text) currentTime = std::chrono::high_resolution_clock::now(); \
+    passedTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); \
+    std::cout << "---------time (" <<#text<< "): " << passedTime << "\n";
 
 using namespace irr;
 using namespace core;
@@ -53,8 +63,6 @@ void Create_Tensor_Module::createImages(bool random_data)
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		&output_tensor);
 
-	output_tensor.X->range = bufferSize;
-
 	//////////////////////
 
 	VkDeviceSize sc_bufferSize = sizeof(aligned_vec3) * 512;
@@ -62,7 +70,6 @@ void Create_Tensor_Module::createImages(bool random_data)
 	scratchpad.X = vulkan->create_buffer(sc_bufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &scratchpad);
 
-	scratchpad.X->range = sc_bufferSize;
 	scratchpad.ready = true;
 }
 
@@ -78,17 +85,16 @@ REFLECT_VKMOD_END()
 REFLECT_VKMOD_BEGIN(Convolution_Module)
 	ALIAS("Convolution Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(output_tensor)
-	REFLECT_STRUCT_MEMBER(output_dummy)
+	REFLECT_STRUCT_MEMBER(pass_output)
+		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(input_tensor)
 	REFLECT_STRUCT_MEMBER(weights)
 	REFLECT_STRUCT_MEMBER(scratchpad)
-	REFLECT_STRUCT_MEMBER_FORWARD(output_dummy, output_tensor)
 REFLECT_VKMOD_END()
 
 void Convolution_Module::run()
 {
-	createImages();
+	//createImages();
 	createDescriptorSetLayout();
 
 	VkPushConstantRange push_constant;
@@ -99,10 +105,7 @@ void Convolution_Module::run()
 	createComputePipeline("shaders/conv.spv", push_constant);
 	//createComputePipeline("shaders/conv.spv");
 
-	//even though it's an "output", need to create the memory somewhere. Just take it as ant
-	
-	output_tensor.X = output_dummy.X;
-	output_tensor.ready = true;
+	pass_output.ready = true;
 
 	execute();
 	read_results();
@@ -117,7 +120,7 @@ void Convolution_Module::createDescriptorSets()
 
 	writer.writeBuffer(0, weights.X->getDescriptorBufferInfo());
 	writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, pass_output.X->getDescriptorBufferInfo());
 	writer.writeBuffer(3, scratchpad.X->getDescriptorBufferInfo());
 	
 	writer.build(descriptorSets[0]);
@@ -130,10 +133,15 @@ void Convolution_Module::createDescriptorSetLayout()
 
 	bindings[0] = weights.X->getDescriptorSetLayout(0);
 	bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
-	bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
+	bindings[2] = pass_output.X->getDescriptorSetLayout(2);
 	bindings[3] = scratchpad.X->getDescriptorSetLayout(3);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
+}
+
+void Convolution_Module::setDimensions()
+{
+	pass_output.dimensions = output_dimensions;
 }
 
 void Convolution_Module::createImages()
@@ -233,6 +241,7 @@ void Convolution_Module::createImages()
 
 void Convolution_Module::execute()
 {
+	START_TIMER()
 	createDescriptorSets();
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
@@ -246,11 +255,11 @@ void Convolution_Module::execute()
 	uint32_t work_length = 1;
 	uint32_t work_height = 1;
 
-	uint32_t n_WorkGroups_x = 32; //use output image size. Each WG writes to one output pixel.
-	uint32_t n_WorkGroups_y = 32;
-	uint32_t n_WorkGroups_z = 1;
+	uint32_t n_WorkGroups_x = output_dimensions.W; //use output image size. Each WG writes to one output pixel.
+	uint32_t n_WorkGroups_y = output_dimensions.H;
+	uint32_t n_WorkGroups_z = output_dimensions.B; //batch size (n_images)
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	std::cout << "executing compute shader (" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << ")\n";
 
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
@@ -262,6 +271,7 @@ void Convolution_Module::execute()
 	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
+	PRINT_TIMER(Convolution);
 }
 
 void Convolution_Module::read_results()
@@ -286,7 +296,7 @@ void Convolution_Module::read_results()
 
 	for (int i = 0; i < 256; i++)
 	{
-		cout << hit_results[i].V.X << " ";
+		//cout << hit_results[i].V.X << " ";
 		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
 	}
 
@@ -319,14 +329,18 @@ REFLECT_VKMOD_BEGIN(Normalization_Module)
 	ALIAS("Normalization Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(input_tensor)
+	REFLECT_STRUCT_MEMBER(pass_output)
 	REFLECT_STRUCT_MEMBER(mean_buffer)
+		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(var_buffer)
+		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(scratchpad)
+	REFLECT_STRUCT_MEMBER_FORWARD(input_tensor, pass_output)
 REFLECT_VKMOD_END()
 
 void Normalization_Module::run()
 {
-	createBuffer();
+	//createBuffer();
 	createDescriptorSetLayout();
 
 	VkPushConstantRange push_constant;
@@ -335,16 +349,22 @@ void Normalization_Module::run()
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 	createComputePipeline("shaders/mean_var.spv", push_constant);
-	//createComputePipeline("shaders/conv.spv");
-
-	//even though it's an "output", need to create the memory somewhere. Just take it as ant
-	//output_tensor.X = output_dummy.X;
 
 	execute();
 	read_results();
 	cleanup();
+
+	mean_buffer.ready = true;
+	var_buffer.ready = true;
+	pass_output.ready = true;
+	pass_output.X = input_tensor.X;
 }
 
+void Normalization_Module::setDimensions()
+{
+	mean_buffer.dimensions = { 1,1,1,this->input_dimensions.C };
+	var_buffer.dimensions = { 1,1,1,this->input_dimensions.C };
+}
 
 void Normalization_Module::createBuffer()
 {
@@ -380,7 +400,7 @@ void Normalization_Module::createDescriptorSets()
 
 void Normalization_Module::createDescriptorSetLayout()
 {
-	bindings.resize(3);
+	bindings.resize(4);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
 	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
@@ -391,6 +411,7 @@ void Normalization_Module::createDescriptorSetLayout()
 
 void Normalization_Module::execute()
 {
+	START_TIMER()
 	createDescriptorSets();
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
@@ -404,7 +425,7 @@ void Normalization_Module::execute()
 	uint32_t work_length = 1;
 	uint32_t work_height = 1;
 
-	uint32_t n_WorkGroups_x = 128; //per channel
+	uint32_t n_WorkGroups_x = 128; //one per channel
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
@@ -420,6 +441,7 @@ void Normalization_Module::execute()
 	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
+	PRINT_TIMER(Calc Mean and Var)
 }
 
 void Normalization_Module::read_results()
@@ -444,7 +466,7 @@ void Normalization_Module::read_results()
 
 	for (int i = 0; i < 256; i++)
 	{
-		cout << hit_results[i].V.X << " ";
+		//cout << hit_results[i].V.X << " ";
 		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
 	}
 
@@ -477,9 +499,11 @@ REFLECT_VKMOD_BEGIN(Activation_Module)
 	ALIAS("Activation Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(input_tensor)
+	REFLECT_STRUCT_MEMBER(pass_output)
 	REFLECT_STRUCT_MEMBER(mean_buffer)
 	REFLECT_STRUCT_MEMBER(var_buffer)
 	REFLECT_STRUCT_MEMBER(results_buffer)
+	REFLECT_STRUCT_MEMBER_FORWARD(input_tensor, pass_output)
 REFLECT_VKMOD_END()
 
 void Activation_Module::run()
@@ -492,6 +516,9 @@ void Activation_Module::run()
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 	createComputePipeline("shaders/activate.spv", push_constant);
+
+	pass_output.ready = true;
+	pass_output.X = input_tensor.X;
 
 	execute();
 	cleanup();
@@ -524,6 +551,7 @@ void Activation_Module::createDescriptorSetLayout()
 
 void Activation_Module::execute()
 {
+	START_TIMER()
 	createDescriptorSets();
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
@@ -534,7 +562,9 @@ void Activation_Module::execute()
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
 		&descriptorSets[0], 0, 0);
 
-	uint32_t n_WorkGroups_x = 128;
+	uint32_t n_threads = input_dimensions.B * input_dimensions.C * input_dimensions.H * input_dimensions.W;
+
+	uint32_t n_WorkGroups_x = n_threads / 256;
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
@@ -549,6 +579,8 @@ void Activation_Module::execute()
 	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
+
+	PRINT_TIMER(Normalize and Activate)
 }
 
 void Activation_Module::cleanup()

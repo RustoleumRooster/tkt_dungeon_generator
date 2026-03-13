@@ -41,9 +41,8 @@ void main()
 	float offset  = 0.0 - mean[c] * scale;
 
 	float y = outputb[global_id] * scale + offset;
-	//y = y > 0.0 ? y : y * 0.2;  // leaky relu
 
-	//activation
+	//y = y > 0.0 ? y : y * 0.2;  // leaky relu
 
 	outputb[global_id] = y;
 }

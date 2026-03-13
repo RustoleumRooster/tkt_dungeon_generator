@@ -62,10 +62,6 @@ REFLECT_STRUCT3_BEGIN(vkBufferResource)
 	REFLECT_STRUCT_MEMBER(BufferMemory)
 REFLECT_STRUCT_END()
 
-REFLECT_STRUCT3_BEGIN(vkTensorResource)
-	REFLECT_STRUCT_MEMBER(Image)
-REFLECT_STRUCT_END()
-
 REFLECT_STRUCT3_BEGIN(vkMultiImageResource)
 	REFLECT_STRUCT_MEMBER(Images)
 REFLECT_STRUCT_END()
@@ -80,18 +76,6 @@ REFLECT_STRUCT3_BEGIN(vkImageSubresource)
 	REFLECT_STRUCT_MEMBER(Image)
 	REFLECT_STRUCT_MEMBER(ImageMemory)
 	REFLECT_STRUCT_MEMBER(ImageView)
-REFLECT_STRUCT_END()
-
-REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkTensorResource, reflect::input)
-	INHERIT_FROM(reflect::input_type)
-	REFLECT_STRUCT_MEMBER(input_uid)
-	REFLECT_STRUCT_MEMBER(input_member)
-REFLECT_STRUCT_END()
-
-REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkTensorResource, reflect::output)
-	INHERIT_FROM(reflect::output_type)
-	REFLECT_STRUCT_MEMBER(output_uids)
-	REFLECT_STRUCT_MEMBER(output_member);
 REFLECT_STRUCT_END()
 
 REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkMultiImageResource, reflect::input)
@@ -212,6 +196,23 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 	vulkan->all_modules.push_back(this);
 	m_device = vulkan->m_device;
 	m_DescriptorPool = vulkan->m_DescriptorPool;
+
+	reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
+
+	
+	for (reflect::Member& m : tD->members)
+	{
+		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+
+		if (m_tD->inherited_type == &reflect::output_type::Reflection)
+		{
+			reflect::output_type* out = (reflect::output_type*)m.get(this);
+			out->vulkan = vulkan;
+		}
+
+		//reflect::inout_gui_type* inout = (reflect::inout_gui_type*)m.get(this);
+		//inout->vulkan = vulkan;
+	}
 }
 
 bool Vulkan_Module::all_resources_ready()
@@ -243,7 +244,29 @@ bool Vulkan_Module::signaled()
 
 		my_status = VK_MODULE_RAN;
 
+		setDimensions(); //for member inputs/outputs
+
 		cout << tD->name << ": running \n";
+
+		for (reflect::Member& m : tD->members)
+		{
+			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+
+			if (m_tD->inherited_type == &reflect::input_type::Reflection)
+			{
+				reflect::input_type* in = (reflect::input_type*)m.get(this);
+				
+			}
+			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
+			{
+				reflect::output_type* out = (reflect::output_type*)m.get(this);
+			
+				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
+				{
+					out->make_buffer();
+				}
+			}
+		}
 
 		run();
 
@@ -413,40 +436,6 @@ void Vulkan_Module::createComputePipeline(const char* shader_path, VkPushConstan
 	pipeline = new ComputePipeline(m_device, shader_path, pipelineLayout);
 }
 
-//==================================================
-// Tensor
-//
-
-vkTensorResource* Vulkan_App::create_tensor(TensorDimension dimension, VkImageUsageFlags flags, reflect::output_type* output_binding)
-{
-	vkTensorResource* imgArray = new vkTensorResource(VK_FORMAT_R32_SFLOAT, dimension, output_binding);
-
-	int n_layers = dimension.B * dimension.C;
-
-	m_device->createImageArray(n_layers, dimension.W, dimension.H, VK_FORMAT_R32_SFLOAT,
-		VK_IMAGE_TILING_OPTIMAL,
-		flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, imgArray->Image,
-		imgArray->ImageMemory);
-
-	imgArray->ImageView = m_device->createImageArrayView(n_layers, imgArray->Image, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
-
-	m_device->transitionImageArrayLayout(n_layers, imgArray->Image, VK_FORMAT_R32_SFLOAT,
-		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
-	imgArray->n_images = n_layers;
-	imgArray->initializeDescriptorInfo();
-	imgArray->status = RESOURCE_VALID;
-
-	resources.push_back(imgArray);
-
-	return imgArray;
-}
-
-
-vkTensorResource::vkTensorResource(VkFormat format, TensorDimension d, reflect::output_type* out) 
-	: vkMemoryResource(out), ImageFormat{ format }, dimensions{ d }
-{
-}
 
 vkMultiImageResource* Vulkan_App::create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type* output_binding)
 {
@@ -499,6 +488,8 @@ vkBufferResource* Vulkan_App::create_buffer(VkDeviceSize bufferSize, VkBufferUsa
 		buffer->BufferMemory);
 
 	buffer->status = RESOURCE_VALID;
+	buffer->range = bufferSize;
+	buffer->used = bufferSize;
 
 	resources.push_back(buffer);
 
@@ -774,7 +765,7 @@ VkDescriptorBufferInfo* vkBufferResource::getDescriptorBufferInfo()
 	//VkDescriptorBufferInfo BufferInfo{};
 	BufferInfo.buffer = Buffer;
 	BufferInfo.offset = 0;
-	BufferInfo.range = range;
+	BufferInfo.range = used;
 
 	return &BufferInfo;
 }
@@ -824,42 +815,17 @@ void vkUniformBufferResource::writeToBuffer(VkDevice device, void* data, VkDevic
 	vkUnmapMemory(device, BufferMemory);
 }
 
-//=====================================================
-// Image Array
-//
-
-void vkTensorResource::destroy(VkDevice device)
+namespace reflect
 {
-	vkDestroyImageView(device, ImageView, nullptr);
-	vkDestroyImage(device, Image, nullptr);
-	vkFreeMemory(device, ImageMemory, nullptr);
-}
-
-VkDescriptorSetLayoutBinding vkTensorResource::getDescriptorSetLayout(u32 binding_no)
-{
-	VkDescriptorSetLayoutBinding Binding{};
-	Binding.binding = binding_no;
-	Binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	Binding.descriptorCount = n_images;
-	Binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-	Binding.pImmutableSamplers = nullptr; // Optional
-
-	return Binding;
-}
-
-VkDescriptorImageInfo* vkTensorResource::getDescriptorBufferInfo()
-{
-	return imageStorageInfo.data();
-}
-
-void vkTensorResource::initializeDescriptorInfo()
-{
-	imageStorageInfo.resize(n_images);
-
-	for (int i = 0; i < n_images; i++)
+	template <>
+	void output<vkBufferResource>::make_buffer()
 	{
-		imageStorageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageStorageInfo[i].imageView = ImageView;
+		int n_indices = dimensions.B * dimensions.C * dimensions.H * dimensions.W;
+		VkDeviceSize bufferSize = sizeof(float) * n_indices;
+
+		X = vulkan->create_buffer(bufferSize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			this);
 	}
 }
 

@@ -18,10 +18,6 @@
 
 class MyDescriptorPool;
 
-
-
-
-
 class Create_Tensor_Module : public Vulkan_Module
 {
 public:
@@ -92,9 +88,7 @@ struct Convolution_Module : public Vulkan_Module
 		32,//uw
 	};
 
-	//std::vector<aligned_float> weights;
-	//std::vector<aligned_float> activations;
-	//std::vector<aligned_float> outputs;
+	void setDimensions();
 	void createImages();
 	void createDescriptorSets();
 	void createDescriptorSetLayout();
@@ -106,8 +100,8 @@ struct Convolution_Module : public Vulkan_Module
 
 	reflect::input<vkBufferResource> weights;
 	reflect::input<vkBufferResource> input_tensor;
-	reflect::input<vkBufferResource> output_dummy;
-	reflect::output<vkBufferResource> output_tensor;
+	//reflect::input<vkBufferResource> output_buffer;
+	reflect::output<vkBufferResource> pass_output;
 	reflect::input<vkBufferResource> scratchpad;
 
 	REFLECT_VKMOD()
@@ -116,7 +110,6 @@ struct Convolution_Module : public Vulkan_Module
 struct Normalization_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,32,32 };
-
 
 	Normalization_Module()
 	{
@@ -145,6 +138,7 @@ struct Normalization_Module : public Vulkan_Module
 		32,//uw
 	};
 
+	void setDimensions();
 	//void createImages();
 	void createBuffer();
 	void createDescriptorSets();
@@ -158,7 +152,7 @@ struct Normalization_Module : public Vulkan_Module
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> mean_buffer;
 	reflect::output<vkBufferResource> var_buffer;
-
+	reflect::output<vkBufferResource> pass_output;
 	reflect::input<vkBufferResource> scratchpad;
 
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -169,6 +163,8 @@ struct Normalization_Module : public Vulkan_Module
 
 struct Activation_Module : public Vulkan_Module
 {
+	TensorDimension input_dimensions{ 16,128,32,32 };
+
 	Activation_Module()
 	{
 		set_ptrs();
@@ -196,6 +192,7 @@ struct Activation_Module : public Vulkan_Module
 		32,//uw
 	};
 
+	//void setDimensions();
 	void createDescriptorSets();
 	void createDescriptorSetLayout();
 
@@ -204,6 +201,7 @@ struct Activation_Module : public Vulkan_Module
 	void cleanup();
 
 	reflect::input<vkBufferResource> input_tensor;
+	reflect::output<vkBufferResource> pass_output;
 	reflect::input<vkBufferResource> mean_buffer;
 	reflect::input<vkBufferResource> var_buffer;
 	reflect::input<vkBufferResource> results_buffer;
