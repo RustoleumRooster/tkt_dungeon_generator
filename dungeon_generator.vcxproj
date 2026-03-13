@@ -209,6 +209,7 @@
   <ItemGroup>
     <None Include="activate.comp" />
     <None Include="conv.comp" />
+    <None Include="conv_res.comp" />
     <None Include="mean_var.comp" />
     <None Include="quantize.comp" />
   </ItemGroup>

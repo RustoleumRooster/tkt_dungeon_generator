@@ -23,9 +23,6 @@ layout(std430, binding = 3) writeonly buffer resultsBuffer
 
 
 layout(push_constant) uniform PushConstants {
-	uint k;
-	uint s;
-	uint n;
 	uint c_in;
 	uint c_out;
 	uint img_size_in;

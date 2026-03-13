@@ -29,7 +29,7 @@ using namespace std;
 extern IrrlichtDevice* device;
 
 //==========================================
-// Create Lightmap Images
+// Create Tensors
 //
 
 REFLECT_VKMOD_BEGIN(Create_Tensor_Module)

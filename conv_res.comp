@@ -1,0 +1,70 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Weights
+{
+	float weights[];
+};
+layout(std430, binding = 1) readonly buffer Input_tensor
+{
+	float input_tensor[];
+};
+layout(std430, binding = 2) writeonly buffer Output_tensor
+{
+	float output_tensor[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+
+layout(push_constant) uniform PushConstants {
+	uint c_in;
+	uint c_out;
+	uint img_size_in;
+	uint img_size_out;
+} c;
+
+shared float sg_partials[4];
+shared float total_acc;
+
+layout (local_size_x = 32, local_size_y = 4, local_size_z = 1) in;
+
+void main()
+{
+
+	uint ix = gl_LocalInvocationID.x;
+	uint id = ix + (iy * 32);
+
+	ivec2 pos = ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y);
+	
+	float thread_acc = 0; //accumulate one output channel per thread
+
+	for(int i=0; i<128; i++) //loop over input channels
+	{
+		for(int x=0;x<9;x++) //iterate over each kernel cell. 9 spatial cells -> one output channel
+		{
+			uint kx = x % 3;
+			uint ky = x / 3;
+
+			float in_activation = input_tensor[(gl_WorkGroupID.z * 128 * c.img_size_in * c.img_size_in) + 
+				(i * c.img_size_in * c.img_size_in) + pos.x + kx +
+				(pos.y + ky) * c.img_size_in];
+
+			float my_weight = weights[(id*128*3*3) + i * (3*3) + x];
+
+			thread_acc += my_weight * in_activation;
+			
+		}	
+	}
+
+	output_tensor[(gl_WorkGroupID.z * 128 * c.img_size_in * c.img_size_in) + 
+		(id * c.img_size_in * c.img_size_in) + 
+		(pos.y * c.img_size_in) + pos.x ] = thread_acc;
+
+	return;
+}

@@ -262,5 +262,8 @@
     <None Include="activate.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
+    <None Include="conv_res.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>
