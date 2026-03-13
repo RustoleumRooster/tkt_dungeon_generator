@@ -12,6 +12,8 @@ struct TensorDimension
 	unsigned C;
 	unsigned H;
 	unsigned W;
+
+	unsigned size() const { return B * C * H * W; }
 };
 
 unsigned long long random_number();

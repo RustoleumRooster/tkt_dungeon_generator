@@ -33,9 +33,10 @@ extern IrrlichtDevice* device;
 //
 
 REFLECT_VKMOD_BEGIN(Create_Tensor_Module)
-	ALIAS("Create Lightmap Images")
+	ALIAS("Create Tensor")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(output_tensor)
+		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(scratchpad)
 REFLECT_VKMOD_END()
 
@@ -54,15 +55,21 @@ void Create_Tensor_Module::initialize(Vulkan_App* vulkan)
 	Vulkan_Module::initialize(vulkan);
 }
 
+void Create_Tensor_Module::setDimensions()
+{
+	output_tensor.dimensions = dimensions;
+}
+
 void Create_Tensor_Module::createImages(bool random_data)
 {
+	/*
 	int n_indices = dimensions.B * dimensions.C * dimensions.H * dimensions.W;
 	VkDeviceSize bufferSize = sizeof(float) * n_indices;
 
 	output_tensor.X = vulkan->create_buffer(bufferSize,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		&output_tensor);
-
+		*/
 	//////////////////////
 
 	VkDeviceSize sc_bufferSize = sizeof(aligned_vec3) * 512;
@@ -76,11 +83,6 @@ void Create_Tensor_Module::createImages(bool random_data)
 //=======================================================
 // Convolution Module
 //
-
-REFLECT_VKMOD_BEGIN(Dummy_Consumer)
-	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(input_tensor)
-REFLECT_VKMOD_END()
 
 REFLECT_VKMOD_BEGIN(Convolution_Module)
 	ALIAS("Convolution Layer")

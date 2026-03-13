@@ -31,6 +31,9 @@
     <Filter Include="Source Files\agg">
       <UniqueIdentifier>{6020443c-da5f-4b8a-b30a-dfea72f0dd2c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\glsl">
+      <UniqueIdentifier>{a37fc35b-04b4-4dd2-8375-1ad035d637c0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -174,6 +177,9 @@
     <ClCompile Include="vkWorkflow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkQuantizeModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -239,14 +245,22 @@
     <ClInclude Include="global.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkQuantizeModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv.comp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="mean_var.comp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\glsl</Filter>
     </None>
-    <None Include="activate.comp" />
+    <None Include="quantize.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="activate.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>

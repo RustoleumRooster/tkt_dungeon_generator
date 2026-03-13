@@ -366,6 +366,7 @@ namespace reflect
 	struct output_type : public inout_gui_type
 	{
 		//u64 my_uid = 0;
+		
 		std::vector<u64> output_uids;
 		std::vector<std::string> output_member;
 
@@ -375,6 +376,7 @@ namespace reflect
 		virtual void make_buffer() = 0;
 		Vulkan_Module* owner = NULL;
 		std::vector<input_type*> dest_inputs;	
+		TensorDimension dimensions; //not reflected
 		bool ready = false;						
 
 		virtual void signal() = 0;
@@ -417,7 +419,6 @@ namespace reflect
 			return X->equal_dimensions(input_obj->X);
 		}
 
-		TensorDimension dimensions; //not reflected
 		std::vector<u64> old_uids;	//not reflected
 		TY* X = NULL;						
 
@@ -587,6 +588,7 @@ public:
 	ComputePipeline* pipeline = NULL;
 
 	u64 m_uid;
+	u32 memory_needed = 0;
 	int my_status = VK_MODULE_NOT_RAN;
 	bool enabled = true;
 

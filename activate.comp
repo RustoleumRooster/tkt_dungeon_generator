@@ -23,6 +23,8 @@ layout(std430, binding = 3) writeonly buffer resultsBuffer
 	vec3 results[];
 };
 
+
+
 layout(local_size_x = 256) in;
 
 uint C = 128;

@@ -706,6 +706,22 @@ void MyDevice::transitionImageArrayLayout(uint32_t n_layers, VkImage image, VkFo
 	endSingleTimeCommands(commandBuffer);
 }
 
+u32 MyDevice::getDeviceRAMSize()
+{
+	VkPhysicalDeviceMemoryProperties memProps;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+
+	VkDeviceSize totalDeviceLocalMemory = 0;
+
+	for (uint32_t i = 0; i < memProps.memoryHeapCount; i++) {
+		if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+			totalDeviceLocalMemory += memProps.memoryHeaps[i].size;
+		}
+	}
+
+	return totalDeviceLocalMemory / (1024 * 1024);
+}
+
 void MyDevice::createLogicalDevice() {
 	//QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice, NULL);

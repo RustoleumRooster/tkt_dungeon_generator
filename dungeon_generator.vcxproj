@@ -178,6 +178,7 @@
     <ClCompile Include="vkDescriptors.cpp" />
     <ClCompile Include="vkDevice.cpp" />
     <ClCompile Include="vkModules.cpp" />
+    <ClCompile Include="vkQuantizeModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />
   </ItemGroup>
@@ -202,12 +203,14 @@
     <ClInclude Include="vkDescriptors.h" />
     <ClInclude Include="vkDevice.h" />
     <ClInclude Include="vkModules.h" />
+    <ClInclude Include="vkQuantizeModule.h" />
     <ClInclude Include="vkUtilModules.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="activate.comp" />
     <None Include="conv.comp" />
     <None Include="mean_var.comp" />
+    <None Include="quantize.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

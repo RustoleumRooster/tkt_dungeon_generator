@@ -1,0 +1,95 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input
+{
+	float input_[];
+};
+
+layout(std430, binding = 1) readonly buffer Codebook
+{
+	float codebook[];
+};
+
+layout(std430, binding = 2) writeonly buffer Output
+{
+	float output_[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+layout(push_constant) uniform PushConstants {
+	uint n_vectors;
+} co;
+
+layout(local_size_x = 128) in;
+
+shared float sg_partials[4];
+shared float best;
+shared uint ret;
+
+void main()
+{
+	uint id = gl_LocalInvocationID.x;
+
+	uint H = 4;
+	uint W = 4;
+	uint N = gl_WorkGroupID.x / (H * W);
+	uint hw = gl_WorkGroupID.x % (H * W);
+	uint h = hw / H;
+	uint w = hw % H;
+
+	if(id==0)
+	{
+		best = 0xFFFF;
+	}
+	barrier();
+
+	//each thread loads one channel
+	//
+	float q = input_[(N * 128 * H * W) + (id * H * W) + (h * W) + w];
+
+	//loop over each vector
+	//
+	for(int j=0; j<co.n_vectors; j++)
+	{
+		//each thread computes an element-by-element squared difference
+		//
+		float r = codebook[j * 128 + id] - q;
+		r = r * r;
+
+		//compute a sum and save if better
+		//
+		if(subgroupElect())
+			sg_partials[gl_SubgroupID] = subgroupAdd(r);
+
+		barrier();
+
+		if(id == 0)
+		{
+			float t = 0.0;
+			for(int i=0;i<4;i++)
+				t += sg_partials[i];
+
+			if(t<best)
+			{
+				best = t;
+				ret = j;
+			}
+		}
+
+		barrier();
+	}
+
+	if(id == 0)
+	{
+		//output channel dimension = 1
+		//
+		output_[(N * 128 * H * W) + (h * W) + w] = ret;
+	}
+}

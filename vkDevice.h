@@ -129,6 +129,7 @@ public:
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void transitionImageArrayLayout(uint32_t, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
+	u32 getDeviceRAMSize();
 private:
 	void init()
 	{
@@ -146,6 +147,7 @@ private:
 	bool isDeviceSuitable(VkPhysicalDevice physical_device);
 	void pickPhysicalDevice();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice physical_device);
+	
 	//SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physical_device);
 
 	VkInstance instance;

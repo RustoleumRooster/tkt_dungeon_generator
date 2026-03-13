@@ -30,28 +30,13 @@ public:
 
 	virtual void initialize(Vulkan_App* vulkan);
 
+	void setDimensions();
 	virtual void run();
 	void createImages(bool random_data = false);
 
 	reflect::output<vkBufferResource> output_tensor;
 	reflect::output<vkBufferResource> scratchpad;
 
-	REFLECT_VKMOD()
-};
-
-struct Dummy_Consumer : public Vulkan_Module
-{
-	Dummy_Consumer()
-
-	{
-		set_ptrs();
-	}
-
-	//TensorDimension input_dimensions{ 1,4,4,4 };
-
-	virtual void run() {}
-
-	reflect::input<vkBufferResource> input_tensor;
 	REFLECT_VKMOD()
 };
 

@@ -244,8 +244,6 @@ bool Vulkan_Module::signaled()
 
 		my_status = VK_MODULE_RAN;
 
-		setDimensions(); //for member inputs/outputs
-
 		cout << tD->name << ": running \n";
 
 		for (reflect::Member& m : tD->members)
@@ -561,21 +559,44 @@ void Vulkan_App::status()
 
 void Vulkan_App::run_workflow()
 {
+	reflect::TypeDescriptor* input_tD = reflect::TypeResolver<reflect::input_type>::get();
+	reflect::TypeDescriptor* output_tD = reflect::TypeResolver<reflect::output_type>::get();
+
+	u32 total_mem = 0;
 	for (Vulkan_Module* vk : all_modules)
 	{
 		reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
 
+		vk->setDimensions(); //propagate dimensions to inputs/outputs and push constants
+
 		for (reflect::Member& m : tD->members)
 		{
 			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-			reflect::input_type* in = (reflect::input_type*)m.get(vk);
-			if (in->status == reflect::INPUT_NOT_CONNECTED)
+			if (m_tD->inherited_type == input_tD)
 			{
-				std::cout << tD->name << " disabled\n";
-				vk->enabled = false;
+				reflect::input_type* in = (reflect::input_type*)m.get(vk);
+				if (in->status == reflect::INPUT_NOT_CONNECTED)
+				{
+					std::cout << tD->name << " disabled\n";
+					vk->enabled = false;
+				}
+			}
+			else if (m_tD->inherited_type == output_tD)
+			{
+				reflect::output_type* out = (reflect::output_type*)m.get(vk);
+				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
+				{
+					vk->memory_needed = out->dimensions.size();
+					cout << tD->alias<<" memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
+					total_mem += (vk->memory_needed * 4);
+				}
 			}
 		}
 	}
+	cout << "--------------\n";
+	cout << "total memory use: " << total_mem / (1024 * 1024) << "Mb\n";
+	cout << "GPU RAM size: " << m_device->getDeviceRAMSize() << "Mb \n";
+	cout << "Usage: " << f32(total_mem / (1024 * 1024)) / f32(m_device->getDeviceRAMSize()) << "\n\n";
 
 	//geo_module->run_and_push();
 

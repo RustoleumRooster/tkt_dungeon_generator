@@ -1,6 +1,7 @@
 
 #include "vkModules.h"
 #include "vkUtilModules.h"
+#include "vkQuantizeModule.h"
 
 Vulkan_Workflow::~Vulkan_Workflow()
 {
@@ -24,14 +25,20 @@ void Vulkan_Workflow::make_default_workflow()
 	Create_Tensor_Module* weights_buffer = new Create_Tensor_Module();
 	weights_buffer->dimensions = { 128,128,4,4 };
 
-	//Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
-	//create_codebook->dimensions = { 1,128,4,4 };
+	Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
+	create_codebook->dimensions = { 1,128,8,8 };
 
 	Convolution_Module* conv_1 = new Convolution_Module();
 	conv_1->pushconstants.img_size_in = 64;
 	conv_1->pushconstants.img_size_out = 32;
 	conv_1->input_dimensions = { 16,128,64,64 };
 	conv_1->output_dimensions = { 16,128,32,32 };
+
+	Normalization_Module* norm_1 = new Normalization_Module();
+	norm_1->input_dimensions = { 16,128,32,32 };
+
+	Activation_Module* activate_1 = new Activation_Module();
+	activate_1->input_dimensions = { 16,128,32,32 };
 
 	Convolution_Module* conv_2 = new Convolution_Module();
 	conv_2->pushconstants.img_size_in = 32;
@@ -45,21 +52,19 @@ void Vulkan_Workflow::make_default_workflow()
 	conv_3->input_dimensions = { 16,128,32,32 };
 	conv_3->output_dimensions = { 16,128,8,8 };
 
-	Normalization_Module* norm_1 = new Normalization_Module();
-	norm_1->input_dimensions = { 16,128,32,32 };
-
-	Activation_Module* activate_1 = new Activation_Module();
-	activate_1->input_dimensions = { 16,128,32,32 };
+	Quantize_Module* quantize = new Quantize_Module();
+	quantize->input_dimensions = { 16,128,8,8 };
+	quantize->codebook_size = { 1,1,512,128 };
 
 	Modules.push_back(VkMod_Reference{ create_images });
-	//Modules.push_back(VkMod_Reference{ output_buffer_A });
-	//Modules.push_back(VkMod_Reference{ output_buffer_B });
 	Modules.push_back(VkMod_Reference{ weights_buffer });
+	Modules.push_back(VkMod_Reference{ create_codebook });
 	Modules.push_back(VkMod_Reference{ conv_1 });
 	Modules.push_back(VkMod_Reference{ conv_2 });
 	Modules.push_back(VkMod_Reference{ conv_3 });
 	Modules.push_back(VkMod_Reference{ norm_1 });
 	Modules.push_back(VkMod_Reference{ activate_1 });
+	Modules.push_back(VkMod_Reference{ quantize });
 
 	//1
 	reflect::connect(&create_images->output_tensor, &conv_1->input_tensor);
@@ -79,10 +84,16 @@ void Vulkan_Workflow::make_default_workflow()
 
 	//3
 	reflect::connect(&conv_2->pass_output, &conv_3->input_tensor);
+	
 	//reflect::connect(&output_buffer_A->output_tensor, &conv_3->output_buffer);
 	reflect::connect(&weights_buffer->output_tensor, &conv_3->weights);
 
+	//quantize
+	reflect::connect(&conv_3->pass_output, &quantize->input_tensor);
+	reflect::connect(&create_codebook->output_tensor, &quantize->codebook);
+
 	reflect::connect(&weights_buffer->scratchpad, &conv_1->scratchpad);
+	reflect::connect(&weights_buffer->scratchpad, &quantize->results_buffer);
 	reflect::connect(&weights_buffer->scratchpad, &conv_2->scratchpad);
 	reflect::connect(&weights_buffer->scratchpad, &conv_3->scratchpad);
 	reflect::connect(&weights_buffer->scratchpad, &norm_1->scratchpad);
