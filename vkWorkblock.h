@@ -23,34 +23,33 @@ struct Workblock_Module : public Vulkan_Module
 		set_ptrs();
 	}
 
-	struct pushconstant_struct
-	{
-		u32 n_vectors;
-	};
-
-	pushconstant_struct pushconstants
-	{
-		1 //n_vectors
-	};
-
-	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
+	virtual void build_workflow(std::vector<Vulkan_Module*>&) override {}
 	virtual void initialize(Vulkan_App* vulkan) override;
 	virtual void setDimensions() override;
+	virtual void run() override;
 
-	virtual void run();
+	virtual reflect::input<vkBufferResource>& head_input() { return input_tensor; }
+	virtual reflect::output<vkBufferResource>& tail_output() { return output_tensor; }
+
+	reflect::input<vkBufferResource> input_tensor;
+	reflect::output<vkBufferResource> output_tensor;
+
+	std::vector<Vulkan_Module*> modules;
+
+	REFLECT_VKMOD()
+};
+
+
+struct Convolution_Block : public Workblock_Module
+{
+	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
+	virtual reflect::input<vkBufferResource>& head_input() override;
+	virtual reflect::output<vkBufferResource>& tail_output() override;
 
 	Create_Tensor_Module* weights_buffer = NULL;
 	Convolution_Module* conv = NULL;
 	Normalization_Module* norm = NULL;
 	Activation_Module* activate = NULL;
-
-	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> output_tensor;
-
-	reflect::input<vkBufferResource>& head_input();
-	reflect::output<vkBufferResource>& tail_output();
-
-	std::vector<Vulkan_Module*> modules;
 
 	REFLECT_VKMOD()
 };

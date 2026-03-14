@@ -23,21 +23,17 @@ void Vulkan_Workflow::make_default_workflow()
 	Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
 	create_codebook->dimensions = { 1,128,8,8 };
 
-	Workblock_Module* conv_block = new Workblock_Module();
+	Convolution_Block* conv_block = new Convolution_Block();
 	conv_block->input_dimension = { 16,128,64,64 };
 	conv_block->output_dimension = { 16,128,32,32 };
 
-	Convolution_Module* conv_2 = new Convolution_Module();
-	conv_2->pushconstants.img_size_in = 32;
-	conv_2->pushconstants.img_size_out = 16;
-	conv_2->input_dimensions = { 16,128,32,32 };
-	conv_2->output_dimensions = { 16,128,16,16 };
+	Convolution_Block* conv_block_2 = new Convolution_Block();
+	conv_block_2->input_dimension = { 16,128,32,32 };
+	conv_block_2->output_dimension = { 16,128,16,16 };
 
-	Convolution_Module* conv_3 = new Convolution_Module();
-	conv_3->pushconstants.img_size_in = 16;
-	conv_3->pushconstants.img_size_out = 8;
-	conv_3->input_dimensions = { 16,128,32,32 };
-	conv_3->output_dimensions = { 16,128,8,8 };
+	Convolution_Block* conv_block_3 = new Convolution_Block();
+	conv_block_3->input_dimension = { 16,128,16,16 };
+	conv_block_3->output_dimension = { 16,128,8,8 };
 
 	Quantize_Module* quantize = new Quantize_Module();
 	quantize->input_dimensions = { 16,128,8,8 };
@@ -47,8 +43,8 @@ void Vulkan_Workflow::make_default_workflow()
 	Modules.push_back(VkMod_Reference{ weights_buffer });
 	Modules.push_back(VkMod_Reference{ create_codebook });
 	Modules.push_back(VkMod_Reference{ conv_block });
-	Modules.push_back(VkMod_Reference{ conv_2 });
-	Modules.push_back(VkMod_Reference{ conv_3 });
+	Modules.push_back(VkMod_Reference{ conv_block_2 });
+	Modules.push_back(VkMod_Reference{ conv_block_3 });
 	Modules.push_back(VkMod_Reference{ quantize });
 
 	std::vector<Vulkan_Module*> append_list;
@@ -59,29 +55,17 @@ void Vulkan_Workflow::make_default_workflow()
 	for (Vulkan_Module* mod : append_list)
 		Modules.push_back(VkMod_Reference{ mod });
 
+	//1
 	reflect::connect(&create_images->output_tensor, &conv_block->input_tensor);
 	reflect::connect(&create_images->output_tensor, &conv_block->head_input());
-	reflect::connect(&conv_block->tail_output(), &conv_2->input_tensor);
-	reflect::connect(&weights_buffer->output_tensor, &conv_2->weights);
+
+	//2
+	reflect::connect(&conv_block->tail_output(), &conv_block_2->input_tensor);
+	reflect::connect(&conv_block->tail_output(), &conv_block_2->head_input());
 
 	//3
-	reflect::connect(&conv_2->pass_output, &conv_3->input_tensor);
-	
-	//reflect::connect(&output_buffer_A->output_tensor, &conv_3->output_buffer);
-	reflect::connect(&weights_buffer->output_tensor, &conv_3->weights);
-
-	//quantize
-	reflect::connect(&conv_3->pass_output, &quantize->input_tensor);
-	reflect::connect(&create_codebook->output_tensor, &quantize->codebook);
-
-	//reflect::connect(&weights_buffer->scratchpad, &conv_1->scratchpad);
-	reflect::connect(&weights_buffer->scratchpad, &quantize->results_buffer);
-	reflect::connect(&weights_buffer->scratchpad, &conv_2->scratchpad);
-	reflect::connect(&weights_buffer->scratchpad, &conv_3->scratchpad);
-	//reflect::connect(&weights_buffer->scratchpad, &norm_1->scratchpad);
-	//reflect::connect(&weights_buffer->scratchpad, &activate_1->results_buffer);
-
-	
+	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->input_tensor);
+	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->head_input());
 
 	items.clear();
 	for (VkMod_Reference& ref : Modules)
