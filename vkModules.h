@@ -538,7 +538,7 @@ namespace reflect
 			in->X = this->X;
 			in->ready = true;
 
-			module->signaled();
+			//module->signaled();
 		}
 	}
 }
@@ -569,6 +569,7 @@ public:
 	void createComputePipeline(const char* shader_path);
 	void createComputePipeline(const char* shader_path, VkPushConstantRange);
 
+	virtual void build_workflow(std::vector<Vulkan_Module*>&) {}
 	virtual void run() {}
 	//bool load_resources();
 	bool all_resources_ready();
@@ -591,6 +592,7 @@ public:
 	u32 memory_needed = 0;
 	int my_status = VK_MODULE_NOT_RAN;
 	bool enabled = true;
+	bool is_submodule = false;
 
 	static reflect::Vulkan_Reflection_Factory factory;
 
@@ -608,9 +610,11 @@ public:
 	Vulkan_App(video::IVideoDriver* driver);
 
 	void initVulkan();
-	void cleanup();
+	
 	void status();
+	void pre_run_check();
 	void run_workflow();
+	void cleanup();
 
 	void createDescriptorPool();
 	void createCommandBuffers();
@@ -655,6 +659,7 @@ public:
 
 	void make_default_workflow();
 	void initialize_and_run(Vulkan_App* vulkan);
+
 
 	void save();
 	void load();

@@ -2,6 +2,7 @@
 #include "vkModules.h"
 #include "vkUtilModules.h"
 #include "vkQuantizeModule.h"
+#include "vkWorkblock.h"
 
 Vulkan_Workflow::~Vulkan_Workflow()
 {
@@ -16,29 +17,15 @@ void Vulkan_Workflow::make_default_workflow()
 	Create_Tensor_Module* create_images = new Create_Tensor_Module();
 	create_images->dimensions = { 16,128,64,64 };
 
-	//Create_Tensor_Module* output_buffer_A = new Create_Tensor_Module();
-	//output_buffer_A->dimensions = { 16,128,32,32 };
-
-	//Create_Tensor_Module* output_buffer_B = new Create_Tensor_Module();
-	//output_buffer_A->dimensions = { 16,128,16,16 }; //smaller
-
 	Create_Tensor_Module* weights_buffer = new Create_Tensor_Module();
 	weights_buffer->dimensions = { 128,128,4,4 };
 
 	Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
 	create_codebook->dimensions = { 1,128,8,8 };
 
-	Convolution_Module* conv_1 = new Convolution_Module();
-	conv_1->pushconstants.img_size_in = 64;
-	conv_1->pushconstants.img_size_out = 32;
-	conv_1->input_dimensions = { 16,128,64,64 };
-	conv_1->output_dimensions = { 16,128,32,32 };
-
-	Normalization_Module* norm_1 = new Normalization_Module();
-	norm_1->input_dimensions = { 16,128,32,32 };
-
-	Activation_Module* activate_1 = new Activation_Module();
-	activate_1->input_dimensions = { 16,128,32,32 };
+	Workblock_Module* conv_block = new Workblock_Module();
+	conv_block->input_dimension = { 16,128,64,64 };
+	conv_block->output_dimension = { 16,128,32,32 };
 
 	Convolution_Module* conv_2 = new Convolution_Module();
 	conv_2->pushconstants.img_size_in = 32;
@@ -59,27 +46,22 @@ void Vulkan_Workflow::make_default_workflow()
 	Modules.push_back(VkMod_Reference{ create_images });
 	Modules.push_back(VkMod_Reference{ weights_buffer });
 	Modules.push_back(VkMod_Reference{ create_codebook });
-	Modules.push_back(VkMod_Reference{ conv_1 });
+	Modules.push_back(VkMod_Reference{ conv_block });
 	Modules.push_back(VkMod_Reference{ conv_2 });
 	Modules.push_back(VkMod_Reference{ conv_3 });
-	Modules.push_back(VkMod_Reference{ norm_1 });
-	Modules.push_back(VkMod_Reference{ activate_1 });
 	Modules.push_back(VkMod_Reference{ quantize });
 
-	//1
-	reflect::connect(&create_images->output_tensor, &conv_1->input_tensor);
-	//reflect::connect(&output_buffer_A->output_tensor, &conv_1->output_buffer);
-	reflect::connect(&weights_buffer->output_tensor, &conv_1->weights);
+	std::vector<Vulkan_Module*> append_list;
 
-	reflect::connect(&conv_1->pass_output, &norm_1->input_tensor);
-	reflect::connect(&norm_1->pass_output, &activate_1->input_tensor);
+	for (VkMod_Reference& ref : Modules)
+		ref.X->build_workflow(append_list);
 
-	reflect::connect(&norm_1->mean_buffer, &activate_1->mean_buffer);
-	reflect::connect(&norm_1->var_buffer, &activate_1->var_buffer);
+	for (Vulkan_Module* mod : append_list)
+		Modules.push_back(VkMod_Reference{ mod });
 
-	//2
-	reflect::connect(&activate_1->pass_output, &conv_2->input_tensor);
-	//reflect::connect(&output_buffer_B->output_tensor, &conv_2->output_buffer);
+	reflect::connect(&create_images->output_tensor, &conv_block->input_tensor);
+	reflect::connect(&create_images->output_tensor, &conv_block->head_input());
+	reflect::connect(&conv_block->tail_output(), &conv_2->input_tensor);
 	reflect::connect(&weights_buffer->output_tensor, &conv_2->weights);
 
 	//3
@@ -92,12 +74,14 @@ void Vulkan_Workflow::make_default_workflow()
 	reflect::connect(&conv_3->pass_output, &quantize->input_tensor);
 	reflect::connect(&create_codebook->output_tensor, &quantize->codebook);
 
-	reflect::connect(&weights_buffer->scratchpad, &conv_1->scratchpad);
+	//reflect::connect(&weights_buffer->scratchpad, &conv_1->scratchpad);
 	reflect::connect(&weights_buffer->scratchpad, &quantize->results_buffer);
 	reflect::connect(&weights_buffer->scratchpad, &conv_2->scratchpad);
 	reflect::connect(&weights_buffer->scratchpad, &conv_3->scratchpad);
-	reflect::connect(&weights_buffer->scratchpad, &norm_1->scratchpad);
-	reflect::connect(&weights_buffer->scratchpad, &activate_1->results_buffer);
+	//reflect::connect(&weights_buffer->scratchpad, &norm_1->scratchpad);
+	//reflect::connect(&weights_buffer->scratchpad, &activate_1->results_buffer);
+
+	
 
 	items.clear();
 	for (VkMod_Reference& ref : Modules)
@@ -111,6 +95,13 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 		mod.X->initialize(vulkan);
 	}
 
-	vulkan->run_workflow();
+	vulkan->pre_run_check();
+
+	for (VkMod_Reference& mod : Modules)
+	{
+		if(mod.X->is_submodule == false)
+			mod.X->signaled();
+	}
+
 	vulkan->cleanup();
 }

@@ -180,6 +180,9 @@
     <ClCompile Include="vkQuantizeModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkWorkblock.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -246,6 +249,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkQuantizeModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkWorkblock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

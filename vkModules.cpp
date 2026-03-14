@@ -175,6 +175,44 @@ void Vulkan_App::initVulkan()
 
 void Vulkan_App::cleanup()
 {
+	for (Vulkan_Module* vk : all_modules)
+	{
+		reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
+
+		if (vk->my_status == VK_MODULE_NOT_RAN)
+		{
+			std::cout << tD->name << " did not run\n";
+		}
+	}
+	bool UnusedResources = false;
+	for (vkMemoryResource* res : resources)
+	{
+		if (res->status != RESOURCE_DESTROYED)
+		{
+			if (!UnusedResources)
+			{
+				UnusedResources = true;
+				cout << "Resources not consumed:\n";
+			}
+			reflect::TypeDescriptor_Struct* res_tD = res->GetDynamicReflection();
+			reflect::TypeDescriptor_Struct* res_owner_tD = res->owner->owner->GetDynamicReflection();
+			cout << "  " << res_owner_tD->name << "::" << res_tD->name << "\n";
+
+			for (reflect::input_type* in : res->consumers)
+			{
+				reflect::TypeDescriptor_Struct* tD = in->owner->GetDynamicReflection();
+				cout << "    -> " << tD->name << "\n";
+			}
+			res->status = RESOURCE_DESTROYED;
+			res->destroy(m_device->getDevice());
+		}
+	}
+	if (!UnusedResources)
+	{
+		cout << "All resources consumed\n";
+	}
+	cout << "Finished running workflow\n";
+
 	m_DescriptorPool->cleanup();
 	m_device->cleanup();
 
@@ -209,9 +247,6 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 			reflect::output_type* out = (reflect::output_type*)m.get(this);
 			out->vulkan = vulkan;
 		}
-
-		//reflect::inout_gui_type* inout = (reflect::inout_gui_type*)m.get(this);
-		//inout->vulkan = vulkan;
 	}
 }
 
@@ -275,7 +310,9 @@ bool Vulkan_Module::signaled()
 			if (m_tD->inherited_type == &reflect::input_type::Reflection)
 			{
 				reflect::input_type* in = (reflect::input_type*)m.get(this);
-				in->src_output->consume(in);
+
+				if(in->ready)
+					in->src_output->consume(in);
 			}
 			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
 			{
@@ -557,7 +594,7 @@ void Vulkan_App::status()
 	}
 }
 
-void Vulkan_App::run_workflow()
+void Vulkan_App::pre_run_check()
 {
 	reflect::TypeDescriptor* input_tD = reflect::TypeResolver<reflect::input_type>::get();
 	reflect::TypeDescriptor* output_tD = reflect::TypeResolver<reflect::output_type>::get();
@@ -587,7 +624,7 @@ void Vulkan_App::run_workflow()
 				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
 				{
 					vk->memory_needed = out->dimensions.size();
-					cout << tD->alias<<" memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
+					cout << tD->alias << " memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
 					total_mem += (vk->memory_needed * 4);
 				}
 			}
@@ -598,6 +635,12 @@ void Vulkan_App::run_workflow()
 	cout << "GPU RAM size: " << m_device->getDeviceRAMSize() << "Mb \n";
 	cout << "Usage: " << f32(total_mem / (1024 * 1024)) / f32(m_device->getDeviceRAMSize()) << "\n\n";
 
+}
+
+void Vulkan_App::run_workflow()
+{
+	
+
 	//geo_module->run_and_push();
 
 	bool still_running = true;
@@ -606,7 +649,7 @@ void Vulkan_App::run_workflow()
 		still_running = false;
 		for (Vulkan_Module* vk : all_modules)
 		{
-			if (vk->enabled && vk->my_status == VK_MODULE_NOT_RAN)
+			if (vk->enabled && vk->is_submodule == false && vk->my_status == VK_MODULE_NOT_RAN)
 			{
 				if(vk->signaled() == true)
 					still_running = true;
@@ -614,43 +657,7 @@ void Vulkan_App::run_workflow()
 		}
 	}
 
-	for (Vulkan_Module* vk : all_modules)
-	{
-		reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
-
-		if (vk->my_status == VK_MODULE_NOT_RAN)
-		{
-			//std::cout << tD->name << " did not run\n";
-		}
-	}
-	bool UnusedResources = false;
-	for (vkMemoryResource* res : resources)
-	{
-		if (res->status != RESOURCE_DESTROYED)
-		{	
-			if (!UnusedResources)
-			{
-				UnusedResources = true;
-				cout << "Resources not consumed:\n";
-			}
-			reflect::TypeDescriptor_Struct* res_tD = res->GetDynamicReflection();
-			reflect::TypeDescriptor_Struct* res_owner_tD = res->owner->owner->GetDynamicReflection();
-			cout <<"  "<< res_owner_tD->name << "::" << res_tD->name << "\n";
-
-			for (reflect::input_type* in : res->consumers)
-			{
-				reflect::TypeDescriptor_Struct* tD = in->owner->GetDynamicReflection();
-				cout << "    -> " << tD->name << "\n";
-			}
-			res->status = RESOURCE_DESTROYED;
-			res->destroy(m_device->getDevice());
-		}
-	}
-	if (!UnusedResources)
-	{
-		cout << "All resources consumed\n";
-	}
-	cout << "Finished running workflow\n";
+	
 }
 
 void vkImageSubresource::destroy(VkDevice device)
