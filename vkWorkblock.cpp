@@ -6,6 +6,8 @@
 #include "vkGroupNormModule.h"
 #include "vkGroupNorm2Module.h"
 #include "vkSiluModule.h"
+#include "vkSkipModule.h"
+#include "vkAddModule.h"
 
 REFLECT_VKMOD_BEGIN(Workblock_Module)
 	ALIAS("Workblock")		
@@ -128,6 +130,9 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	scratchpad_buffer = new Create_Tensor_Module();
 	scratchpad_buffer->dimensions = { 1,1,1,512 };
 
+	skip = new Skip_Module();
+	skip->input_dimensions = { N,C,H,W };
+
 	group_norm = new GroupNorm_Module();
 	group_norm->input_dimensions = { N,C,H,W };
 	group_norm->pushconstants = { N,C,H,W, 32 };
@@ -158,12 +163,20 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	conv2->pushconstants.img_size_in  = H;
 	conv2->pushconstants.img_size_out = H;
 
+	add = new Add_Module();
+	add->input_dimensions = { N,C,H,W };
+
 	modules.push_back(scratchpad_buffer);
+	modules.push_back(skip);
 	modules.push_back(group_norm);
 	modules.push_back(group_norm2);
 	modules.push_back(conv1);
 	modules.push_back(silu);
 	modules.push_back(conv2);
+	modules.push_back(add);
+
+	// skip branch
+	reflect::connect(&skip->pass_output, &group_norm->input_tensor);
 
 	// normalization chain
 	reflect::connect(&group_norm->mean_buffer, &group_norm2->mean_buffer);
@@ -174,6 +187,10 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	reflect::connect(&group_norm2->pass_output, &conv1->input_tensor);
 	reflect::connect(&conv1->pass_output,        &silu->input_tensor);
 	reflect::connect(&silu->pass_output,         &conv2->input_tensor);
+
+	// add skip to output
+	reflect::connect(&conv2->pass_output,  &add->input_a);
+	reflect::connect(&skip->skip_output,   &add->input_b);
 
 	// scratchpad
 	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
@@ -190,10 +207,10 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 
 reflect::input<vkBufferResource>& ResBlock_Module::head_input()
 {
-	return group_norm->input_tensor;
+	return skip->input_tensor;
 }
 
 reflect::output<vkBufferResource>& ResBlock_Module::tail_output()
 {
-	return conv2->pass_output;
+	return add->output;
 }

@@ -192,6 +192,12 @@
     <ClCompile Include="vkSiluModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkAddModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkSkipModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -272,6 +278,12 @@
     <ClInclude Include="vkSiluModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkAddModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkSkipModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv.comp">
@@ -296,6 +308,9 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="silu.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="add.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>

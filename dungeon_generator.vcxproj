@@ -173,6 +173,7 @@
     <ClCompile Include="Refl_Primitives.cpp" />
     <ClCompile Include="scrollbar2.cpp" />
     <ClCompile Include="tree_struct.cpp" />
+    <ClCompile Include="vkAddModule.cpp" />
     <ClCompile Include="vkBufferObject.cpp" />
     <ClCompile Include="vkComputePipeline.cpp" />
     <ClCompile Include="vkDescriptors.cpp" />
@@ -182,6 +183,7 @@
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkQuantizeModule.cpp" />
     <ClCompile Include="vkSiluModule.cpp" />
+    <ClCompile Include="vkSkipModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
     <ClCompile Include="vkWorkblock.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />
@@ -202,6 +204,7 @@
     <ClInclude Include="tkt_reflection_factory.h" />
     <ClInclude Include="tkt_set.h" />
     <ClInclude Include="tree_struct.h" />
+    <ClInclude Include="vkAddModule.h" />
     <ClInclude Include="vkBufferObject.h" />
     <ClInclude Include="vkComputePipeline.h" />
     <ClInclude Include="vkDescriptors.h" />
@@ -211,11 +214,13 @@
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkQuantizeModule.h" />
     <ClInclude Include="vkSiluModule.h" />
+    <ClInclude Include="vkSkipModule.h" />
     <ClInclude Include="vkUtilModules.h" />
     <ClInclude Include="vkWorkblock.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="activate.comp" />
+    <None Include="add.comp" />
     <None Include="conv.comp" />
     <None Include="conv_res.comp" />
     <None Include="groupnorm.comp" />
