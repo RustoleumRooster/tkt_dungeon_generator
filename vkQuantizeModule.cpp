@@ -28,6 +28,7 @@ REFLECT_VKMOD_BEGIN(Quantize_Module)
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(input_tensor)
 	REFLECT_STRUCT_MEMBER(codebook)
+		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(output)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_STRUCT_MEMBER(results_buffer)
@@ -52,7 +53,7 @@ void Quantize_Module::run()
 
 void Quantize_Module::setDimensions()
 {
-	//codebook.dimensions = { 1,1,1,this->input_dimensions.C };
+	codebook.dimensions = codebook_size;
 	output.dimensions = { this->input_dimensions.B,1,this->input_dimensions.H,this->input_dimensions.W };
 	pushconstants.n_vectors = this->codebook_size.H;
 }

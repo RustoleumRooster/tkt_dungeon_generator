@@ -20,7 +20,7 @@ struct Quantize_Module : public Vulkan_Module
 	TensorDimension input_dimensions{ 16,128,8,8 };
 	TensorDimension codebook_size{ 1,1,512,128 };
 
-	Quantize_Module()
+	Quantize_Module() : codebook(mapped_codebook)
 	{
 		set_ptrs();
 	}
@@ -43,8 +43,10 @@ struct Quantize_Module : public Vulkan_Module
 	void execute();
 	void cleanup();
 
+	std::vector<f32> mapped_codebook;
+
 	reflect::input<vkBufferResource> input_tensor;
-	reflect::input<vkBufferResource> codebook;
+	reflect::parameter<vkBufferResource> codebook;
 	reflect::output<vkBufferResource> output;
 	reflect::input<vkBufferResource> results_buffer;
 

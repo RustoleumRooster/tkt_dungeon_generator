@@ -14,11 +14,10 @@ Vulkan_Workflow::~Vulkan_Workflow()
 
 void Vulkan_Workflow::make_default_workflow()
 {
+	Create_Tensor_Module* scratchpad = new Create_Tensor_Module();
+
 	Create_Tensor_Module* create_images = new Create_Tensor_Module();
 	create_images->dimensions = { 16,128,64,64 };
-
-	Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
-	create_codebook->dimensions = { 1,128,8,8 };
 
 	Convolution_Block* conv_block = new Convolution_Block();
 	conv_block->input_dimension = { 16,128,64,64 };
@@ -37,7 +36,7 @@ void Vulkan_Workflow::make_default_workflow()
 	quantize->codebook_size = { 1,1,512,128 };
 
 	Modules.push_back(VkMod_Reference{ create_images });
-	Modules.push_back(VkMod_Reference{ create_codebook });
+	Modules.push_back(VkMod_Reference{ scratchpad });
 	Modules.push_back(VkMod_Reference{ conv_block });
 	Modules.push_back(VkMod_Reference{ conv_block_2 });
 	Modules.push_back(VkMod_Reference{ conv_block_3 });
@@ -62,6 +61,9 @@ void Vulkan_Workflow::make_default_workflow()
 	//3
 	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->input_tensor);
 	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->head_input());
+
+	reflect::connect(&scratchpad->scratchpad, &quantize->results_buffer);
+	reflect::connect(&conv_block_3->tail_output(), &quantize->input_tensor);
 
 	items.clear();
 	for (VkMod_Reference& ref : Modules)

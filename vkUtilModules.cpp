@@ -144,6 +144,7 @@ void Convolution_Module::createDescriptorSetLayout()
 void Convolution_Module::setDimensions()
 {
 	pass_output.dimensions = output_dimensions;
+	weights.dimensions = TensorDimension{ input_dimensions.C, output_dimensions.C ,4 ,4 };
 }
 
 void Convolution_Module::createImages()

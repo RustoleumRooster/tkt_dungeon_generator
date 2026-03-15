@@ -254,6 +254,11 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 			reflect::output_type* out = (reflect::output_type*)m.get(this);
 			out->vulkan = vulkan;
 		}
+		else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
+		{
+			reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
+			p->vulkan = vulkan;
+		}
 	}
 }
 
