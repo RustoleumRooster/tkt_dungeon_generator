@@ -1,0 +1,68 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) buffer Input_tensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 1) readonly buffer Parameters
+{
+	// interleaved: gamma[c], beta[c] for c in [0, C)
+	float parameters[];
+};
+
+layout(std430, binding = 2) readonly buffer Mean_buffer
+{
+	float mean_buffer[];
+};
+
+layout(std430, binding = 3) readonly buffer Var_buffer
+{
+	float var_buffer[];
+};
+
+layout(std430, binding = 4) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+	uint num_groups;
+} co;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	uint HW    = co.h * co.w;
+	uint CHW   = co.c * HW;
+	uint total = co.n * CHW;
+
+	if (idx >= total)
+		return;
+
+	uint batch_idx = idx / CHW;
+	uint c         = (idx % CHW) / HW;
+	uint g         = c / (co.c / co.num_groups);
+
+	uint group_idx = batch_idx * co.num_groups + g;
+	float mean     = mean_buffer[group_idx];
+	float var      = var_buffer[group_idx];
+	float inv_std  = inversesqrt(var + 1e-5);
+
+	float gamma = parameters[c * 2 + 0];
+	float beta  = parameters[c * 2 + 1];
+
+	float val         = input_tensor[idx];
+	input_tensor[idx] = gamma * (val - mean) * inv_std + beta;
+}

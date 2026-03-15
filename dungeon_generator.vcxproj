@@ -177,6 +177,8 @@
     <ClCompile Include="vkComputePipeline.cpp" />
     <ClCompile Include="vkDescriptors.cpp" />
     <ClCompile Include="vkDevice.cpp" />
+    <ClCompile Include="vkGroupNorm2Module.cpp" />
+    <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkQuantizeModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
@@ -203,6 +205,8 @@
     <ClInclude Include="vkComputePipeline.h" />
     <ClInclude Include="vkDescriptors.h" />
     <ClInclude Include="vkDevice.h" />
+    <ClInclude Include="vkGroupNorm2Module.h" />
+    <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkQuantizeModule.h" />
     <ClInclude Include="vkUtilModules.h" />
@@ -212,6 +216,8 @@
     <None Include="activate.comp" />
     <None Include="conv.comp" />
     <None Include="conv_res.comp" />
+    <None Include="groupnorm.comp" />
+    <None Include="groupnorm2.comp" />
     <None Include="mean_var.comp" />
     <None Include="quantize.comp" />
   </ItemGroup>

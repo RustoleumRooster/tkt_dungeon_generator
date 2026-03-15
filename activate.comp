@@ -18,7 +18,13 @@ layout(std430, binding = 2) readonly buffer VarBuffer
 	float var[];
 };
 
-layout(std430, binding = 3) writeonly buffer resultsBuffer
+layout(std430, binding = 3) readonly buffer Parameters
+{
+	// interleaved: gamma[c], beta[c] for c in [0, C)
+	float parameters[];
+};
+
+layout(std430, binding = 4) writeonly buffer resultsBuffer
 {
 	vec3 results[];
 };
@@ -36,11 +42,12 @@ void main()
 	uint global_id = gl_GlobalInvocationID.x;  // flat index into N*C*H*W
 	uint c = (global_id / (H * W)) % C;        // which channel
 
+	float gamma = parameters[c * 2 + 0];
+	float beta  = parameters[c * 2 + 1];
+
 	float inv_std = 1.0 / sqrt(var[c] + pow(1.0,-5.0));
-	//float scale   = gamma[c] * inv_std;
-	float scale   = 1.0 * inv_std;
-	//float offset  = beta[c] - mean[c] * scale;
-	float offset  = 0.0 - mean[c] * scale;
+	float scale   = gamma * inv_std;
+	float offset  = beta - mean[c] * scale;
 
 	float y = outputb[global_id] * scale + offset;
 

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -c \"/c/Users/nateh/source/repos/dungeon_generator/groupnorm.comp\" && xxd \"/c/Users/nateh/source/repos/dungeon_generator/groupnorm.comp\" | head -20)"
+    ]
+  }
+}

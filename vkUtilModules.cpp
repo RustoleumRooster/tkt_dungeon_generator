@@ -75,7 +75,7 @@ void Create_Tensor_Module::createImages(bool random_data)
 	VkDeviceSize sc_bufferSize = sizeof(aligned_vec3) * 512;
 
 	scratchpad.X = vulkan->create_buffer(sc_bufferSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &scratchpad);
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	scratchpad.ready = true;
 }
@@ -374,14 +374,12 @@ void Normalization_Module::createBuffer()
 	VkDeviceSize bufferSize = sizeof(float) * n_indices;
 
 	mean_buffer.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		&mean_buffer);
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 	mean_buffer.X->range = bufferSize;
 
 	var_buffer.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		&var_buffer);
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 	var_buffer.X->range = bufferSize;
 }
@@ -504,9 +502,15 @@ REFLECT_VKMOD_BEGIN(Activation_Module)
 	REFLECT_STRUCT_MEMBER(pass_output)
 	REFLECT_STRUCT_MEMBER(mean_buffer)
 	REFLECT_STRUCT_MEMBER(var_buffer)
+	REFLECT_STRUCT_MEMBER(parameters)
 	REFLECT_STRUCT_MEMBER(results_buffer)
 	REFLECT_STRUCT_MEMBER_FORWARD(input_tensor, pass_output)
 REFLECT_VKMOD_END()
+
+void Activation_Module::setDimensions()
+{
+	parameters.dimensions = { 1,1,2,input_dimensions.C }; //two params per channel (gamma, beta)
+}
 
 void Activation_Module::run()
 {
@@ -535,18 +539,20 @@ void Activation_Module::createDescriptorSets()
 	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
 	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
-	writer.writeBuffer(3, results_buffer.X->getDescriptorBufferInfo());
+	writer.writeBuffer(3, parameters.X->getDescriptorBufferInfo());
+	writer.writeBuffer(4, results_buffer.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
 
 void Activation_Module::createDescriptorSetLayout()
 {
-	bindings.resize(4);
+	bindings.resize(5);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
 	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
-	bindings[3] = results_buffer.X->getDescriptorSetLayout(3);
+	bindings[3] = parameters.X->getDescriptorSetLayout(3);
+	bindings[4] = results_buffer.X->getDescriptorSetLayout(4);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }

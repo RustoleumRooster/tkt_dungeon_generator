@@ -76,8 +76,6 @@ void Convolution_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	modules.push_back(norm);
 	modules.push_back(activate);
 
-	reflect::connect(&weights_buffer->output_tensor, &conv->weights);
-
 	reflect::connect(&conv->pass_output, &norm->input_tensor);
 	reflect::connect(&norm->pass_output, &activate->input_tensor);
 

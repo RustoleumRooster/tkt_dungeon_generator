@@ -217,14 +217,14 @@ enum {
 
 struct vkMemoryResource
 {
-	vkMemoryResource(reflect::output_type*);
-	void find_consumers(reflect::output_type*);
-	void consume(reflect::input_type*);
+	vkMemoryResource(/*reflect::output_type**/);
+	//void find_consumers(reflect::output_type*);
+	//void consume(reflect::input_type*);
 
-	u32 reference_count = 0;
-	std::vector<reflect::input_type*> consumers;
+	//u32 reference_count = 0;
+	//std::vector<reflect::input_type*> consumers;
 	virtual void destroy(VkDevice) = 0;
-	reflect::output_type* owner = NULL;
+	//reflect::output_type* owner = NULL;
 	int status = RESOURCE_UNK;
 
 	virtual bool equal_dimensions(vkMemoryResource* other) {
@@ -262,7 +262,7 @@ struct vkBufferResource : public vkMemoryResource
 	u32 used = 0;
 	VkDescriptorBufferInfo BufferInfo;
 
-	vkBufferResource(reflect::output_type* out) : vkMemoryResource(out) {}
+	vkBufferResource() : vkMemoryResource() {}
 	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
 	VkDescriptorBufferInfo* getDescriptorBufferInfo();
 
@@ -277,7 +277,7 @@ struct vkImageResource : public vkMemoryResource
 	VkDeviceMemory ImageMemory;
 	VkImageView ImageView;
 
-	vkImageResource(reflect::output_type* out) : vkMemoryResource(out) {}
+	vkImageResource(reflect::output_type* out) : vkMemoryResource() {}
 	void destroy(VkDevice);
 	void create_and_load_texture(MyDevice* device, video::IVideoDriver* driver, video::ITexture* tex);
 
@@ -300,7 +300,7 @@ struct vkMultiImageResource : public vkMemoryResource
 {
 	std::vector<vkImageSubresource> Images;
 
-	vkMultiImageResource(reflect::output_type* out) : vkMemoryResource(out) {}
+	vkMultiImageResource(reflect::output_type* out) : vkMemoryResource() {}
 
 	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
 	VkDescriptorImageInfo getDescriptorBufferInfo(u32);
@@ -372,7 +372,6 @@ namespace reflect
 
 		//not reflected
 		//
-		virtual void consume(input_type*) = 0;
 		virtual void make_buffer() = 0;
 		Vulkan_Module* owner = NULL;
 		std::vector<input_type*> dest_inputs;	
@@ -412,7 +411,6 @@ namespace reflect
 
 		output() {}
 
-		virtual void consume(input_type*);
 		virtual void make_buffer();
 
 		bool equal_dimensions(input<TY>* input_obj) {
@@ -429,6 +427,31 @@ namespace reflect
 		REFLECT_CUSTOM_STRUCT()
 	};
 
+	struct parameter_type : public inout_gui_type
+	{
+		virtual void make_buffer() = 0;
+		Vulkan_Module* owner = NULL;
+		TensorDimension dimensions; //not reflected
+		bool ready = false;
+
+		REFLECT3()
+	};
+
+	template <typename TY>
+	struct parameter : public parameter_type
+	{
+		parameter(std::vector<f32>&) : map{ map } {}
+		struct attributes
+		{
+		};
+
+		TY* X = NULL;
+		std::vector<f32>& map = NULL;
+
+		virtual void make_buffer();
+
+		REFLECT_CUSTOM_STRUCT()
+	};
 
 	//void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out);
 	//void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out);
@@ -485,14 +508,14 @@ namespace reflect
 	{
 
 	}
-
+	/*
 	template <typename TY>
 	void output<TY>::consume(input_type* in)
 	{
 		X->consume(in);
 	}
 
-	
+	*/
 
 	template <typename TY>
 	void output<TY>::push()
@@ -621,7 +644,7 @@ public:
 
 	vkMultiImageResource* create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkImageResource* create_image(int width, int height, VkImageUsageFlags flags, reflect::output_type*);
-	vkBufferResource* create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags, reflect::output_type*);
+	vkBufferResource* create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags);
 
 	template<typename T>
 	Vulkan_Module* create_module();

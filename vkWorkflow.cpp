@@ -17,9 +17,6 @@ void Vulkan_Workflow::make_default_workflow()
 	Create_Tensor_Module* create_images = new Create_Tensor_Module();
 	create_images->dimensions = { 16,128,64,64 };
 
-	Create_Tensor_Module* weights_buffer = new Create_Tensor_Module();
-	weights_buffer->dimensions = { 128,128,4,4 };
-
 	Create_Tensor_Module* create_codebook = new Create_Tensor_Module();
 	create_codebook->dimensions = { 1,128,8,8 };
 
@@ -40,7 +37,6 @@ void Vulkan_Workflow::make_default_workflow()
 	quantize->codebook_size = { 1,1,512,128 };
 
 	Modules.push_back(VkMod_Reference{ create_images });
-	Modules.push_back(VkMod_Reference{ weights_buffer });
 	Modules.push_back(VkMod_Reference{ create_codebook });
 	Modules.push_back(VkMod_Reference{ conv_block });
 	Modules.push_back(VkMod_Reference{ conv_block_2 });

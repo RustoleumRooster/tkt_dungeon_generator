@@ -183,6 +183,12 @@
     <ClCompile Include="vkWorkblock.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkGroupNormModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkGroupNorm2Module.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -254,6 +260,12 @@
     <ClInclude Include="vkWorkblock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkGroupNormModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkGroupNorm2Module.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv.comp">
@@ -269,6 +281,12 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="conv_res.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="groupnorm.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="groupnorm2.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>

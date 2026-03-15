@@ -46,7 +46,7 @@ struct Convolution_Module : public Vulkan_Module
 	TensorDimension output_dimensions{ 16,128,32,32 };
 	TensorDimension weight_dimensions{ 128,128,4,4 };
 
-	Convolution_Module()
+	Convolution_Module() : weights(mapped_weights)
 	{
 		set_ptrs();
 	}
@@ -83,7 +83,9 @@ struct Convolution_Module : public Vulkan_Module
 	void read_results();
 	void cleanup();
 
-	reflect::input<vkBufferResource> weights;
+	std::vector<f32> mapped_weights;
+
+	reflect::parameter<vkBufferResource> weights;
 	reflect::input<vkBufferResource> input_tensor;
 	//reflect::input<vkBufferResource> output_buffer;
 	reflect::output<vkBufferResource> pass_output;
@@ -150,7 +152,7 @@ struct Activation_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,32,32 };
 
-	Activation_Module()
+	Activation_Module() : parameters(mapped_parameters)
 	{
 		set_ptrs();
 	}
@@ -177,7 +179,7 @@ struct Activation_Module : public Vulkan_Module
 		32,//uw
 	};
 
-	//void setDimensions();
+	void setDimensions();
 	void createDescriptorSets();
 	void createDescriptorSetLayout();
 
@@ -185,10 +187,13 @@ struct Activation_Module : public Vulkan_Module
 	void execute();
 	void cleanup();
 
+	std::vector<f32> mapped_parameters;
+
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> pass_output;
 	reflect::input<vkBufferResource> mean_buffer;
 	reflect::input<vkBufferResource> var_buffer;
+	reflect::parameter<vkBufferResource> parameters;
 	reflect::input<vkBufferResource> results_buffer;
 
 	std::vector<VkDescriptorSetLayoutBinding> bindings;

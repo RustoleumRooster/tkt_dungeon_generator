@@ -1,0 +1,111 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input_tensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 1) writeonly buffer Output_buffer0
+{
+	float mean_buffer[];
+};
+
+layout(std430, binding = 2) writeonly buffer Output_buffer1
+{
+	float var_buffer[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+
+layout(push_constant) uniform PushConstants 
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+	uint num_groups;
+} co;
+
+
+//==================================================
+// Layout
+//
+
+layout(local_size_x = 256) in;  // 256 threads per WG
+
+shared float sg_partials[8];
+shared float shared_mean;
+shared float shared_var;
+
+void main()
+{
+	uint id = gl_LocalInvocationID.x;
+
+	uint H = 8;
+	uint W = 8;
+	const uint C = 128;
+
+	float partial = 0.0;
+
+	uint n = gl_WorkGroupID.x / co.num_groups;
+	uint g = gl_WorkGroupID.x % co.num_groups;
+	uint c = (g * 4) + (id / 64);
+	uint hw = id % 64;
+	uint w = hw % 8;
+	uint h = hw / 8;
+
+	// Mean
+	partial += input_tensor[n * C * H * W + c * H * W + h * W + w];
+
+	if(subgroupElect())
+	{
+		sg_partials[gl_SubgroupID] = subgroupAdd(partial);
+	}
+
+	barrier();
+
+	float mean = 0.0;
+
+	if (id == 0) 
+	{
+		for(int i=0; i<8; i++)
+		{
+			mean += sg_partials[i];
+		}
+		mean_buffer[n * co.num_groups + g] = mean / 256.0;
+		shared_mean = mean;
+	}
+
+	barrier();
+
+	mean = shared_mean;
+	
+	//Variance
+
+	partial = pow(input_tensor[n * C * H * W + c * H * W + h * W + w] - mean,2.0);
+
+	if(subgroupElect())
+	{
+		sg_partials[gl_SubgroupID] = subgroupAdd(partial);
+	}
+
+	barrier();
+
+	float var = 0.0;
+
+	if (id == 0) 
+	{
+		for(int i=0; i<8; i++)
+		{
+			var += sg_partials[i];
+		}
+		var_buffer[n * co.num_groups + g] = var / 256.0;
+	}
+}

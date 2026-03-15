@@ -108,6 +108,13 @@ REFLECT_STRUCT_END()
 REFLECT_STRUCT3_BEGIN(reflect::output_type)
 REFLECT_STRUCT_END()
 
+REFLECT_STRUCT3_BEGIN(reflect::parameter_type)
+REFLECT_STRUCT_END()
+
+REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkBufferResource, reflect::parameter)
+	INHERIT_FROM(reflect::parameter_type)
+REFLECT_STRUCT_END()
+
 REFLECT_STRUCT_BEGIN(reflect::vector2i)
 	REFLECT_STRUCT_MEMBER(X)
 	REFLECT_STRUCT_MEMBER(Y)
@@ -193,7 +200,7 @@ void Vulkan_App::cleanup()
 			{
 				UnusedResources = true;
 				cout << "Resources not consumed:\n";
-			}
+			}/*
 			reflect::TypeDescriptor_Struct* res_tD = res->GetDynamicReflection();
 			reflect::TypeDescriptor_Struct* res_owner_tD = res->owner->owner->GetDynamicReflection();
 			cout << "  " << res_owner_tD->name << "::" << res_tD->name << "\n";
@@ -202,7 +209,7 @@ void Vulkan_App::cleanup()
 			{
 				reflect::TypeDescriptor_Struct* tD = in->owner->GetDynamicReflection();
 				cout << "    -> " << tD->name << "\n";
-			}
+			}*/
 			res->status = RESOURCE_DESTROYED;
 			res->destroy(m_device->getDevice());
 		}
@@ -299,6 +306,12 @@ bool Vulkan_Module::signaled()
 					out->make_buffer();
 				}
 			}
+			else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
+			{
+				reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
+
+				p->make_buffer();
+			}
 		}
 
 		run();
@@ -311,8 +324,8 @@ bool Vulkan_Module::signaled()
 			{
 				reflect::input_type* in = (reflect::input_type*)m.get(this);
 
-				if(in->ready)
-					in->src_output->consume(in);
+				//if(in->ready)
+				//	in->src_output->consume(in);
 			}
 			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
 			{
@@ -513,9 +526,9 @@ vkImageResource* Vulkan_App::create_image(int width, int height, VkImageUsageFla
 	return img;
 }
 
-vkBufferResource* Vulkan_App::create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags, reflect::output_type* output_binding)
+vkBufferResource* Vulkan_App::create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags)
 {
-	vkBufferResource* buffer = new vkBufferResource(output_binding);
+	vkBufferResource* buffer = new vkBufferResource();
 	/* VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT*/
 
 	m_device->createBuffer(bufferSize, flags,
@@ -852,17 +865,26 @@ namespace reflect
 		VkDeviceSize bufferSize = sizeof(float) * n_indices;
 
 		X = vulkan->create_buffer(bufferSize,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			this);
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	}
+
+	template <>
+	void parameter<vkBufferResource>::make_buffer()
+	{
+		int n_indices = dimensions.B * dimensions.C * dimensions.H * dimensions.W;
+		VkDeviceSize bufferSize = sizeof(float) * n_indices;
+
+		X = vulkan->create_buffer(bufferSize,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 	}
 }
 
-vkMemoryResource::vkMemoryResource(reflect::output_type* out)
+vkMemoryResource::vkMemoryResource(/*reflect::output_type* out*/)
 {
-	owner = out;
-	find_consumers(out);
+	//owner = out;
+	//find_consumers(out);
 }
-
+/*
 void vkMemoryResource::find_consumers(reflect::output_type* out)
 {
 	if (out == NULL)
@@ -880,8 +902,8 @@ void vkMemoryResource::find_consumers(reflect::output_type* out)
 			find_consumers(dest->forward_output);
 		}
 	}
-}
-
+}*/
+/*
 void vkMemoryResource::consume(reflect::input_type* in)
 {
 	vector<reflect::input_type*> new_consumers;
@@ -904,7 +926,8 @@ void vkMemoryResource::consume(reflect::input_type* in)
 		status = RESOURCE_DESTROYED;
 		destroy(vk_device);
 	}
-}
+}*/
+
 namespace reflect
 {
 	template <>
