@@ -104,8 +104,10 @@ void Convolution_Module::run()
 	push_constant.size = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	createComputePipeline("shaders/conv.spv", push_constant);
-	//createComputePipeline("shaders/conv.spv");
+	if(use_one_to_one_shader)
+		createComputePipeline("shaders/conv_res.spv", push_constant);
+	else
+		createComputePipeline("shaders/conv.spv", push_constant);
 
 	pass_output.ready = true;
 
@@ -145,6 +147,10 @@ void Convolution_Module::setDimensions()
 {
 	pass_output.dimensions = output_dimensions;
 	weights.dimensions = TensorDimension{ input_dimensions.C, output_dimensions.C ,4 ,4 };
+	if (output_dimensions.W == input_dimensions.W)
+	{
+		use_one_to_one_shader = true;
+	}
 }
 
 void Convolution_Module::createImages()

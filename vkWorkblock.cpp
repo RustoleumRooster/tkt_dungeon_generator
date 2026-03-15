@@ -3,6 +3,9 @@
 #include "vkWorkblock.h"
 #include "vkModules.h"
 #include "vkUtilModules.h"
+#include "vkGroupNormModule.h"
+#include "vkGroupNorm2Module.h"
+#include "vkSiluModule.h"
 
 REFLECT_VKMOD_BEGIN(Workblock_Module)
 	ALIAS("Workblock")		
@@ -101,4 +104,96 @@ reflect::input<vkBufferResource>& Convolution_Block::head_input()
 reflect::output<vkBufferResource>& Convolution_Block::tail_output()
 {
 	return activate->pass_output;
+}
+
+
+//============================================================
+// ResBlock_Module
+//
+
+REFLECT_VKMOD_BEGIN(ResBlock_Module)
+	ALIAS("Res Block")
+	INHERIT_FROM(Workblock_Module)
+	REFLECT_STRUCT_MEMBER(input_tensor)
+	REFLECT_STRUCT_MEMBER(output_tensor)
+REFLECT_VKMOD_END()
+
+void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
+{
+	u32 N = input_dimension.B;
+	u32 C = input_dimension.C;
+	u32 H = input_dimension.H;
+	u32 W = input_dimension.W;
+
+	scratchpad_buffer = new Create_Tensor_Module();
+	scratchpad_buffer->dimensions = { 1,1,1,512 };
+
+	group_norm = new GroupNorm_Module();
+	group_norm->input_dimensions = { N,C,H,W };
+	group_norm->pushconstants = { N,C,H,W, 32 };
+
+	group_norm2 = new GroupNorm2_Module();
+	group_norm2->input_dimensions = { N,C,H,W };
+	group_norm2->pushconstants = { N,C,H,W, 32 };
+
+	conv1 = new Convolution_Module();
+	conv1->input_dimensions  = { N,C,H,W };
+	conv1->output_dimensions = { N,C,H,W };
+	conv1->pushconstants.n          = N;
+	conv1->pushconstants.c_in       = C;
+	conv1->pushconstants.c_out      = C;
+	conv1->pushconstants.img_size_in  = H;
+	conv1->pushconstants.img_size_out = H;
+
+	silu = new Silu_Module();
+	silu->input_dimensions = { N,C,H,W };
+	silu->pushconstants = { N,C,H,W };
+
+	conv2 = new Convolution_Module();
+	conv2->input_dimensions  = { N,C,H,W };
+	conv2->output_dimensions = { N,C,H,W };
+	conv2->pushconstants.n          = N;
+	conv2->pushconstants.c_in       = C;
+	conv2->pushconstants.c_out      = C;
+	conv2->pushconstants.img_size_in  = H;
+	conv2->pushconstants.img_size_out = H;
+
+	modules.push_back(scratchpad_buffer);
+	modules.push_back(group_norm);
+	modules.push_back(group_norm2);
+	modules.push_back(conv1);
+	modules.push_back(silu);
+	modules.push_back(conv2);
+
+	// normalization chain
+	reflect::connect(&group_norm->mean_buffer, &group_norm2->mean_buffer);
+	reflect::connect(&group_norm->var_buffer,  &group_norm2->var_buffer);
+	reflect::connect(&group_norm->pass_output, &group_norm2->input_tensor);
+
+	// forward pass
+	reflect::connect(&group_norm2->pass_output, &conv1->input_tensor);
+	reflect::connect(&conv1->pass_output,        &silu->input_tensor);
+	reflect::connect(&silu->pass_output,         &conv2->input_tensor);
+
+	// scratchpad
+	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
+	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm2->scratchpad);
+	reflect::connect(&scratchpad_buffer->scratchpad, &conv1->scratchpad);
+	reflect::connect(&scratchpad_buffer->scratchpad, &conv2->scratchpad);
+
+	for (Vulkan_Module* mod : modules)
+	{
+		mod->is_submodule = true;
+		append_list.push_back(mod);
+	}
+}
+
+reflect::input<vkBufferResource>& ResBlock_Module::head_input()
+{
+	return group_norm->input_tensor;
+}
+
+reflect::output<vkBufferResource>& ResBlock_Module::tail_output()
+{
+	return conv2->pass_output;
 }

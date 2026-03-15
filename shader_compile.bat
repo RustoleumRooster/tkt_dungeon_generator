@@ -3,6 +3,10 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe mean_var.comp --target-env=vulkan1.3  --tar
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe activate.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/activate.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/quantize.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe conv_res.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/conv_res.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/gorupnorm.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm2.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/groupnorm2.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe silu.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/silu.spv
+
 
 
 

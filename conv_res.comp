@@ -38,7 +38,7 @@ void main()
 {
 
 	uint ix = gl_LocalInvocationID.x;
-	uint id = ix + (iy * 32);
+	uint id = ix + (gl_LocalInvocationID.y * 32);
 
 	ivec2 pos = ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y);
 	

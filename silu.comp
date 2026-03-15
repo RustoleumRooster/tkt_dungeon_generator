@@ -1,0 +1,28 @@
+#version 450
+
+layout(std430, binding = 0) buffer Tensor
+{
+	float tensor[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx   = gl_GlobalInvocationID.x;
+	uint total = pc.n * pc.c * pc.h * pc.w;
+
+	if (idx >= total)
+		return;
+
+	float x      = tensor[idx];
+	tensor[idx]  = x / (1.0 + exp(-x));  // silu: x * sigmoid(x)
+}

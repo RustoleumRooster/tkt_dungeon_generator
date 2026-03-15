@@ -181,6 +181,7 @@
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkQuantizeModule.cpp" />
+    <ClCompile Include="vkSiluModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
     <ClCompile Include="vkWorkblock.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />
@@ -209,6 +210,7 @@
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkQuantizeModule.h" />
+    <ClInclude Include="vkSiluModule.h" />
     <ClInclude Include="vkUtilModules.h" />
     <ClInclude Include="vkWorkblock.h" />
   </ItemGroup>
@@ -220,6 +222,7 @@
     <None Include="groupnorm2.comp" />
     <None Include="mean_var.comp" />
     <None Include="quantize.comp" />
+    <None Include="silu.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -73,6 +73,8 @@ struct Convolution_Module : public Vulkan_Module
 		32,//uw
 	};
 
+	bool use_one_to_one_shader = false;
+
 	void setDimensions();
 	void createImages();
 	void createDescriptorSets();
@@ -87,7 +89,6 @@ struct Convolution_Module : public Vulkan_Module
 
 	reflect::parameter<vkBufferResource> weights;
 	reflect::input<vkBufferResource> input_tensor;
-	//reflect::input<vkBufferResource> output_buffer;
 	reflect::output<vkBufferResource> pass_output;
 	reflect::input<vkBufferResource> scratchpad;
 
