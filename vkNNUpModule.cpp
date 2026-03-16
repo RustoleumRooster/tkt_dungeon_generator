@@ -1,6 +1,6 @@
 #include <irrlicht.h>
 #include "vkModules.h"
-#include "vkAddModule.h"
+#include "vkNNUpModule.h"
 #include <vulkan/vulkan.h>
 #include "reflect_custom_types.h"
 
@@ -9,26 +9,35 @@ using namespace core;
 using namespace std;
 
 //============================================================
-// Add Module
+// Nearest-Neighbor 2x Upscale Module
 //
 
-REFLECT_VKMOD_BEGIN(Add_Module)
-	ALIAS("Add")
+REFLECT_VKMOD_BEGIN(NNUp_Module)
+	ALIAS("NNUp")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(input_a)
-	REFLECT_STRUCT_MEMBER(input_b)
+	REFLECT_STRUCT_MEMBER(input)
 	REFLECT_STRUCT_MEMBER(output)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 REFLECT_VKMOD_END()
 
-void Add_Module::setDimensions()
+void NNUp_Module::setDimensions()
 {
-	output.dimensions = input_dimensions;
-	pushconstants.n_elements = input_dimensions.B * input_dimensions.C *
-	                           input_dimensions.H * input_dimensions.W;
+	// Output is 2x in H and W
+	output.dimensions = {
+		input_dimensions.B,
+		input_dimensions.C,
+		input_dimensions.H * 2,
+		input_dimensions.W * 2
+	};
+
+	pushconstants.C          = input_dimensions.C;
+	pushconstants.H          = output.dimensions.H;
+	pushconstants.W          = output.dimensions.W;
+	pushconstants.n_elements = output.dimensions.B * output.dimensions.C *
+	                           output.dimensions.H * output.dimensions.W;
 }
 
-void Add_Module::run()
+void NNUp_Module::run()
 {
 	createDescriptorSetLayout();
 
@@ -37,7 +46,7 @@ void Add_Module::run()
 	push_constant.size = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	createComputePipeline("shaders/add.spv", push_constant);
+	createComputePipeline("shaders/NN_up.spv", push_constant);
 
 	output.ready = true;
 
@@ -45,30 +54,28 @@ void Add_Module::run()
 	cleanup();
 }
 
-void Add_Module::createDescriptorSets()
+void NNUp_Module::createDescriptorSets()
 {
 	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
 
 	descriptorSets.resize(1);
 
-	writer.writeBuffer(0, input_a.X->getDescriptorBufferInfo());
-	writer.writeBuffer(1, input_b.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, output.X->getDescriptorBufferInfo());
+	writer.writeBuffer(0, input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, output.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
 
-void Add_Module::createDescriptorSetLayout()
+void NNUp_Module::createDescriptorSetLayout()
 {
-	bindings.resize(3);
-	bindings[0] = input_a.X->getDescriptorSetLayout(0);
-	bindings[1] = input_b.X->getDescriptorSetLayout(1);
-	bindings[2] = output.X->getDescriptorSetLayout(2);
+	bindings.resize(2);
+	bindings[0] = input.X->getDescriptorSetLayout(0);
+	bindings[1] = output.X->getDescriptorSetLayout(1);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }
 
-void Add_Module::execute()
+void NNUp_Module::execute()
 {
 	createDescriptorSets();
 
@@ -93,7 +100,7 @@ void Add_Module::execute()
 	vkDeviceWaitIdle(m_device->getDevice());
 }
 
-void Add_Module::cleanup()
+void NNUp_Module::cleanup()
 {
 	descriptorSetLayout->cleanup();
 

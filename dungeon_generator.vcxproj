@@ -181,7 +181,9 @@
     <ClCompile Include="vkGroupNorm2Module.cpp" />
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
+    <ClCompile Include="vkNNUpModule.cpp" />
     <ClCompile Include="vkQuantizeModule.cpp" />
+    <ClCompile Include="vkSigmoidModule.cpp" />
     <ClCompile Include="vkSiluModule.cpp" />
     <ClCompile Include="vkSkipModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
@@ -212,7 +214,9 @@
     <ClInclude Include="vkGroupNorm2Module.h" />
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkModules.h" />
+    <ClInclude Include="vkNNUpModule.h" />
     <ClInclude Include="vkQuantizeModule.h" />
+    <ClInclude Include="vkSigmoidModule.h" />
     <ClInclude Include="vkSiluModule.h" />
     <ClInclude Include="vkSkipModule.h" />
     <ClInclude Include="vkUtilModules.h" />
@@ -221,12 +225,15 @@
   <ItemGroup>
     <None Include="activate.comp" />
     <None Include="add.comp" />
-    <None Include="conv.comp" />
-    <None Include="conv_res.comp" />
+    <None Include="conv128.comp" />
+    <None Include="conv32.comp" />
+    <None Include="conv64.comp" />
     <None Include="groupnorm.comp" />
     <None Include="groupnorm2.comp" />
     <None Include="mean_var.comp" />
+    <None Include="NN_up.comp" />
     <None Include="quantize.comp" />
+    <None Include="sigmoid.comp" />
     <None Include="silu.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

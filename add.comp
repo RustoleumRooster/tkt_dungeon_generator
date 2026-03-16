@@ -12,7 +12,7 @@ layout(std430, binding = 1) readonly buffer InputB
 
 layout(std430, binding = 2) writeonly buffer Output
 {
-	float output[];
+	float output_buf[];
 };
 
 layout(push_constant) uniform PushConstants
@@ -29,5 +29,5 @@ void main()
 	if (idx >= pc.n_elements)
 		return;
 
-	output[idx] = input_a[idx] + input_b[idx];
+	output_buf[idx] = input_a[idx] + input_b[idx];
 }

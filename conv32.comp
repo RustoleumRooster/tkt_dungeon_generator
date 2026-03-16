@@ -1,0 +1,87 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer Weights
+{
+	float weights[];
+};
+
+layout(std430, binding = 1) readonly buffer Input_tensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 2) writeonly buffer Output_tensor
+{
+	float output_tensor[];
+};
+
+layout(std430, binding = 3) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+
+layout(push_constant) uniform PushConstants {
+	uint k;
+	uint s;
+	uint p;
+	uint C_in;
+	uint C_out;
+	uint img_size_in;
+	uint img_size_out;
+} pc;
+
+//==================================================
+// Layout
+//
+
+//
+// Works with up to 32 output channels, and any number of input channels
+//
+
+//
+// Padding is automatically accounted for
+//
+
+layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+void main()
+{
+	uint id = gl_LocalInvocationID.x;
+
+	if(id >= pc.C_out)
+		return;
+
+	uint out_x = gl_WorkGroupID.x;
+	uint out_y = gl_WorkGroupID.y;
+	
+	float thread_acc = 0; //accumulate one output channel per thread
+
+	for(int i=0; i< pc.C_in; i++) //loop over input channels
+	{
+		for(int x=0; x< pc.k * pc.k; x++) //iterate over each kernel cell. k x k spatial cells -> one output channel
+		{
+			uint kx = x % pc.k;
+			uint ky = x / pc.k;
+			int in_x = int(out_x * pc.s) - int(pc.p) + int(kx);
+			int in_y = int(out_y * pc.s) - int(pc.p) + int(ky);
+
+			float value;
+
+			if (in_x < 0 || in_y <0 || in_x >= pc.img_size_in || in_y >= pc.img_size_in)
+				value = 0.0;
+			else value = input_tensor[(gl_WorkGroupID.z * pc.C_in * pc.img_size_in * pc.img_size_in) + 
+				(i * pc.img_size_in * pc.img_size_in) + in_x +
+				in_y * pc.img_size_in];
+
+			float my_weight = weights[(id * pc.C_in * pc.k * pc.k) + i * (pc.k * pc.k) + x];
+
+			thread_acc += my_weight * value;
+		}	
+	}
+
+	output_tensor[(gl_WorkGroupID.z * pc.C_out * pc.img_size_out * pc.img_size_out) + 
+		(id * pc.img_size_out * pc.img_size_out) + 
+		(out_y * pc.img_size_out) + out_x ] = thread_acc;
+
+	return;
+}

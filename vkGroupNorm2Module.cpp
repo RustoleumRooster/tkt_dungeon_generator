@@ -49,6 +49,7 @@ void GroupNorm2_Module::run()
 void GroupNorm2_Module::setDimensions()
 {
 	parameters.dimensions = { 1,1,2,input_dimensions.C }; //two params per channel (gamma, beta)
+	pass_output.dimensions = input_dimensions;
 
 	pushconstants.n = input_dimensions.B;
 	pushconstants.c = input_dimensions.C;
@@ -99,7 +100,7 @@ void GroupNorm2_Module::execute()
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 

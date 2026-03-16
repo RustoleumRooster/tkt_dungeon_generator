@@ -580,11 +580,31 @@ struct VkMod_Reference
 	Vulkan_Module* X;
 };
 
+struct ModuleLogProxy
+{
+	bool colored;
+	~ModuleLogProxy() { if (colored) std::cout << "\033[0m"; }
+
+	template<typename T>
+	ModuleLogProxy& operator<<(const T& val) { std::cout << val; return *this; }
+
+	// support std::endl and other manipulators
+	ModuleLogProxy& operator<<(std::ostream& (*manip)(std::ostream&)) { manip(std::cout); return *this; }
+};
+
 class Vulkan_Module
 {
 public:
 
 	Vulkan_Module();
+
+	ModuleLogProxy log() const
+	{
+		for (u32 i = 0; i < depth; i++) std::cout << "   ";
+		bool colored = depth > 0;
+		if (colored) std::cout << "\033[90m";
+		return ModuleLogProxy{ colored };
+	}
 
 	virtual void initialize(Vulkan_App* vulkan);
 	virtual void setDimensions() {};
@@ -616,6 +636,7 @@ public:
 	int my_status = VK_MODULE_NOT_RAN;
 	bool enabled = true;
 	bool is_submodule = false;
+	u32 depth = 0;
 
 	static reflect::Vulkan_Reflection_Factory factory;
 

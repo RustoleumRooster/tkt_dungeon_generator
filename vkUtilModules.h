@@ -21,7 +21,7 @@ class MyDescriptorPool;
 class Create_Tensor_Module : public Vulkan_Module
 {
 public:
-	TensorDimension dimensions{ 16,16,32,32 };
+	TensorDimension dimensions{ 1,1,1,1 };
 
 	Create_Tensor_Module()
 	{
@@ -55,7 +55,7 @@ struct Convolution_Module : public Vulkan_Module
 	{
 		u32 k;
 		u32 s;
-		u32 n;
+		u32 p;
 		u32 c_in;
 		u32 c_out;
 		u32 img_size_in;
@@ -66,14 +66,12 @@ struct Convolution_Module : public Vulkan_Module
 	{
 		4,//k
 		2,//s
-		16,//n
+		1,//p
 		16,//c_in
 		16,//c_out
 		32,//h
 		32,//uw
 	};
-
-	bool use_one_to_one_shader = false;
 
 	void setDimensions();
 	void createImages();
@@ -127,7 +125,6 @@ struct Normalization_Module : public Vulkan_Module
 	};
 
 	void setDimensions();
-	//void createImages();
 	void createBuffer();
 	void createDescriptorSets();
 	void createDescriptorSetLayout();

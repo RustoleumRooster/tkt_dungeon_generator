@@ -11,9 +11,9 @@ std::chrono::steady_clock::time_point q_currentTime;
 float q_passedTime;
 
 #define Q_START_TIMER() q_startTime = std::chrono::high_resolution_clock::now();
-#define Q_PRINT_TIMER(text) q_currentTime = std::chrono::high_resolution_clock::now(); \
+#define Q_PRINT_TIMER() q_currentTime = std::chrono::high_resolution_clock::now(); \
     q_passedTime = std::chrono::duration<float, std::chrono::seconds::period>(q_currentTime - q_startTime).count(); \
-    std::cout << "---------time (" <<#text<< "): " << q_passedTime << "\n";
+    log() << q_passedTime << "\n";
 
 using namespace irr;
 using namespace core;
@@ -54,7 +54,7 @@ void Quantize_Module::run()
 void Quantize_Module::setDimensions()
 {
 	codebook.dimensions = codebook_size;
-	output.dimensions = { this->input_dimensions.B,1,this->input_dimensions.H,this->input_dimensions.W };
+	output.dimensions = { this->input_dimensions.B,this->input_dimensions.C,this->input_dimensions.H,this->input_dimensions.W };
 	pushconstants.n_vectors = this->codebook_size.H;
 }
 
@@ -102,7 +102,7 @@ void Quantize_Module::execute()
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 

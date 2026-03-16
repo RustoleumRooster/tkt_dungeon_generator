@@ -20,7 +20,7 @@ float passedTime;
 #define START_TIMER() startTime = std::chrono::high_resolution_clock::now();
 #define PRINT_TIMER(text) currentTime = std::chrono::high_resolution_clock::now(); \
     passedTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); \
-    std::cout << "---------time (" <<#text<< "): " << passedTime << "\n";
+    log() <<  passedTime << " s \n";
 
 using namespace irr;
 using namespace core;
@@ -96,7 +96,6 @@ REFLECT_VKMOD_END()
 
 void Convolution_Module::run()
 {
-	//createImages();
 	createDescriptorSetLayout();
 
 	VkPushConstantRange push_constant;
@@ -104,15 +103,17 @@ void Convolution_Module::run()
 	push_constant.size = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	if(use_one_to_one_shader)
-		createComputePipeline("shaders/conv_res.spv", push_constant);
+	if(output_dimensions.C <= 32)
+		createComputePipeline("shaders/conv32.spv", push_constant);
+	else if (output_dimensions.C <= 64)
+		createComputePipeline("shaders/conv64.spv", push_constant);
 	else
-		createComputePipeline("shaders/conv.spv", push_constant);
+		createComputePipeline("shaders/conv128.spv", push_constant);
 
 	pass_output.ready = true;
 
 	execute();
-	read_results();
+	//read_results();
 	cleanup();
 }
 
@@ -146,106 +147,12 @@ void Convolution_Module::createDescriptorSetLayout()
 void Convolution_Module::setDimensions()
 {
 	pass_output.dimensions = output_dimensions;
-	weights.dimensions = TensorDimension{ input_dimensions.C, output_dimensions.C ,4 ,4 };
-	if (output_dimensions.W == input_dimensions.W)
-	{
-		use_one_to_one_shader = true;
-	}
-}
+	weights.dimensions = TensorDimension{ input_dimensions.C, output_dimensions.C, pushconstants.k, pushconstants.k };
 
-void Convolution_Module::createImages()
-{	
-	/*
-	int n_indices = output_dimensions.B * output_dimensions.C * output_dimensions.H * output_dimensions.W;
-	VkDeviceSize bufferSize = sizeof(float) * n_indices;
-	{
-		
-
-		output_tensor.X = vulkan->create_buffer(bufferSize,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			&output_tensor);
-
-		output_tensor.X->range = bufferSize;
-	}*/
-
-	//=============================================
-
-
-	{
-		int n_indices = weight_dimensions.B * weight_dimensions.C * weight_dimensions.H * weight_dimensions.W;
-		VkDeviceSize bufferSize = sizeof(float) * n_indices;
-
-		MyBufferObject stagingBuffer(m_device, sizeof(float), n_indices, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		f32* data = new f32[n_indices];
-
-		int outer_stride = weight_dimensions.C * weight_dimensions.H * weight_dimensions.W;
-		for (int n = 0; n < weight_dimensions.B; n++)
-		{
-			for (int k = 0; k < weight_dimensions.C; k++)
-				for (int i = 0; i < weight_dimensions.H; i++)
-					for (int j = 0; j < weight_dimensions.W; j++)
-					
-					{
-						f32 f;
-						if (k == 5)
-							f = random_f32();
-						else
-							f = 0;
-
-						data[(outer_stride * n) +
-							(weight_dimensions.W * i) +
-							(weight_dimensions.H * weight_dimensions.W * k) + j] = 1.0;
-					}
-		}
-
-
-		stagingBuffer.writeToBuffer((void*)data);
-
-		m_device->copyBuffer(stagingBuffer.getBuffer(), weights.X->Buffer, bufferSize);
-
-		delete[] data;
-	}
-
-	{
-		int n_indices = input_dimensions.B * input_dimensions.C * input_dimensions.H * input_dimensions.W;
-		VkDeviceSize bufferSize = sizeof(float) * n_indices;
-
-		MyBufferObject stagingBuffer(m_device, sizeof(float), n_indices, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-		f32* data = new f32[n_indices];
-
-		int outer_stride = input_dimensions.C * input_dimensions.H * input_dimensions.W;
-		for (int n = 0; n < input_dimensions.B; n++)
-		{
-			for (int k = 0; k < input_dimensions.C; k++)
-				for (int i = 0; i < input_dimensions.H; i++)
-					for (int j = 0; j < input_dimensions.W; j++)
-					{
-						f32 f;
-
-						if (k == 5)
-							f = i;
-						else
-							f = 0;
-
-						data[(outer_stride * n) +
-							(input_dimensions.W * i) +
-							(input_dimensions.H * input_dimensions.W * k) + j] = random_f32();
-					}
-		}
-
-
-		stagingBuffer.writeToBuffer((void*)data);
-
-		m_device->copyBuffer(stagingBuffer.getBuffer(), input_tensor.X->Buffer, bufferSize);
-
-		delete[] data;
-	}
+	pushconstants.c_in        = input_dimensions.C;
+	pushconstants.c_out       = output_dimensions.C;
+	pushconstants.img_size_in  = input_dimensions.H;
+	pushconstants.img_size_out = output_dimensions.H;
 }
 
 void Convolution_Module::execute()
@@ -261,19 +168,15 @@ void Convolution_Module::execute()
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
 		&descriptorSets[0], 0, 0);
 
-	uint32_t work_length = 1;
-	uint32_t work_height = 1;
-
 	uint32_t n_WorkGroups_x = output_dimensions.W; //use output image size. Each WG writes to one output pixel.
 	uint32_t n_WorkGroups_y = output_dimensions.H;
 	uint32_t n_WorkGroups_z = output_dimensions.B; //batch size (n_images)
 
-	std::cout << "executing compute shader (" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << ")\n";
-
+	log() << "(" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << ")\n";
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, n_WorkGroups_z);
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
@@ -309,7 +212,7 @@ void Convolution_Module::read_results()
 		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
 	}
 
-	cout << "\n";
+	log() << "\n";
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -360,7 +263,7 @@ void Normalization_Module::run()
 	createComputePipeline("shaders/mean_var.spv", push_constant);
 
 	execute();
-	read_results();
+	//read_results();
 	cleanup();
 
 	mean_buffer.ready = true;
@@ -436,7 +339,7 @@ void Normalization_Module::execute()
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
 
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
@@ -477,7 +380,7 @@ void Normalization_Module::read_results()
 		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
 	}
 
-	cout << "\n";
+	log() << "\n";
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -583,7 +486,7 @@ void Activation_Module::execute()
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 

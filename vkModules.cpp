@@ -188,7 +188,7 @@ void Vulkan_App::cleanup()
 
 		if (vk->my_status == VK_MODULE_NOT_RAN)
 		{
-			std::cout << tD->name << " did not run\n";
+			vk->log() << tD->name << " did not run\n";
 		}
 	}
 	bool UnusedResources = false;
@@ -291,7 +291,7 @@ bool Vulkan_Module::signaled()
 
 		my_status = VK_MODULE_RAN;
 
-		cout << tD->name << ": running \n";
+		log() << tD->name << ": running \n";
 
 		for (reflect::Member& m : tD->members)
 		{
@@ -300,7 +300,7 @@ bool Vulkan_Module::signaled()
 			if (m_tD->inherited_type == &reflect::input_type::Reflection)
 			{
 				reflect::input_type* in = (reflect::input_type*)m.get(this);
-				
+
 			}
 			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
 			{
@@ -357,7 +357,7 @@ void Vulkan_Module::run_and_push()
 
 		my_status = VK_MODULE_RAN;
 
-		cout << tD->name << ": running \n";
+		log() << tD->name << ": running \n";
 
 		run();
 
@@ -591,8 +591,8 @@ void Vulkan_App::status()
 	{
 		if (vk->my_status == VK_MODULE_NOT_RAN)
 		{
-			cout << vk->GetDynamicReflection()->name << " did not run\n";
-			
+			vk->log() << vk->GetDynamicReflection()->name << " did not run\n";
+
 			reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
 
 			for (reflect::Member& m : tD->members)
@@ -604,7 +604,7 @@ void Vulkan_App::status()
 					reflect::input_type* in = (reflect::input_type*)m.get(vk);
 					if (!in->ready)
 					{
-						cout << "  " << m.name << " is not ready\n";
+						vk->log() << "  " << m.name << " is not ready\n";
 					}
 				}
 			}
@@ -622,7 +622,8 @@ void Vulkan_App::pre_run_check()
 	{
 		reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
 
-		vk->setDimensions(); //propagate dimensions to inputs/outputs and push constants
+		if(vk->is_submodule == false)
+			vk->setDimensions(); //propagate dimensions to inputs/outputs and push constants
 
 		for (reflect::Member& m : tD->members)
 		{
@@ -632,7 +633,7 @@ void Vulkan_App::pre_run_check()
 				reflect::input_type* in = (reflect::input_type*)m.get(vk);
 				if (in->status == reflect::INPUT_NOT_CONNECTED)
 				{
-					std::cout << tD->name << " disabled\n";
+					vk->log() << tD->name << " disabled\n";
 					vk->enabled = false;
 				}
 			}
@@ -642,7 +643,7 @@ void Vulkan_App::pre_run_check()
 				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
 				{
 					vk->memory_needed = out->dimensions.size();
-					cout << tD->alias << " memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
+					vk->log() << tD->alias << " memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
 					total_mem += (vk->memory_needed * 4);
 				}
 			}

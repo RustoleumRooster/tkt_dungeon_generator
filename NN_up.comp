@@ -1,0 +1,43 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer Input
+{
+	float input_buf[];
+};
+
+layout(std430, binding = 1) writeonly buffer Output
+{
+	float output_buf[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint C;
+	uint H;
+	uint W;
+	uint n_elements;
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	if (idx >= pc.n_elements)
+		return;
+
+	uint CHW = pc.C * pc.H * pc.W;
+	uint HW = pc.H * pc.W;
+
+	uint n = idx / CHW;
+	uint c = (idx % CHW) / HW;
+	uint h = HW / pc.W;
+	uint w = HW % pc.W;
+
+	float z = input_buf[n * pc.C * (pc.H / 2) * (pc.W / 2) +
+						c * (pc.H / 2) * (pc.W / 2) +  
+						(h / 2) * (pc.W / 2) + (w / 2)];
+
+	output_buf[n * CHW + c * HW + h * pc.W + w] = z;
+}

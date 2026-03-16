@@ -37,12 +37,12 @@ void main()
 {
 	uint id = gl_LocalInvocationID.x;
 
-	uint H = 4;
-	uint W = 4;
+	uint H = 8;
+	uint W = 8;
 	uint N = gl_WorkGroupID.x / (H * W);
 	uint hw = gl_WorkGroupID.x % (H * W);
-	uint h = hw / H;
-	uint w = hw % H;
+	uint h = hw / W;
+	uint w = hw % W;
 
 	if(id==0)
 	{
@@ -86,10 +86,6 @@ void main()
 		barrier();
 	}
 
-	if(id == 0)
-	{
-		//output channel dimension = 1
-		//
-		output_[(N * 128 * H * W) + (h * W) + w] = ret;
-	}
+	// each thread writes its channel from the winning codebook vector
+	output_[(N * 128 * H * W) + (id * H * W) + (h * W) + w] = codebook[ret * 128 + id];
 }

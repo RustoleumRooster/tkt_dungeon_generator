@@ -198,6 +198,12 @@
     <ClCompile Include="vkSkipModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkNNUpModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkSigmoidModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -284,9 +290,15 @@
     <ClInclude Include="vkSkipModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkNNUpModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkSigmoidModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="conv.comp">
+    <None Include="conv128.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="mean_var.comp">
@@ -296,9 +308,6 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="activate.comp">
-      <Filter>Source Files\glsl</Filter>
-    </None>
-    <None Include="conv_res.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm.comp">
@@ -311,6 +320,18 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="add.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="NN_up.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="conv32.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="conv64.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="sigmoid.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>

@@ -84,7 +84,7 @@ void Silu_Module::execute()
 	uint32_t n_WorkGroups_y = 1;
 	uint32_t n_WorkGroups_z = 1;
 
-	std::cout << "executing compute shader (" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
 
 	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
