@@ -746,11 +746,11 @@ void MyDevice::createLogicalDevice() {
 
 	VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomicFloatFeatures = {};
 	atomicFloatFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-
-	
+	atomicFloatFeatures.shaderBufferFloat32AtomicAdd = VK_TRUE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pNext = &atomicFloatFeatures;
 
 	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pQueueCreateInfos = queueCreateInfos.data();

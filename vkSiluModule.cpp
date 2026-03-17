@@ -19,7 +19,7 @@ REFLECT_VKMOD_BEGIN(Silu_Module)
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_STRUCT_MEMBER(input_tensor)
 	REFLECT_STRUCT_MEMBER(pass_output)
-	REFLECT_STRUCT_MEMBER_FORWARD(input_tensor, pass_output)
+	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
 REFLECT_VKMOD_END()
 
 void Silu_Module::run()

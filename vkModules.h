@@ -117,6 +117,7 @@ namespace reflect
             return &type::Reflection;\
             }\
         void type::initReflection(reflect::TypeDescriptor_Struct* typeDesc) { \
+			bool backward_pass = false; \
             using T = type; \
             typeDesc->name = #type; \
             typeDesc->size = sizeof(T); \
@@ -125,15 +126,17 @@ namespace reflect
             typeDesc->alias = typeDesc->name;\
 			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->getNew = type::getNew;
 
-
-#define REFLECT_VKMOD_FLAG(f) \
-			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= f;
-
-//#define REFLECT_STRUCT_MEMBER_FLAG(flag)
-
 #define REFLECT_VKMOD_FLAG_TRANSITION_MODULE	2
 
 #define REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY	2
+#define REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS	4
+
+#define REFLECT_VKMOD_MEMBER(name) \
+        typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
+		if(backward_pass) typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS;
+
+#define REFLECT_VKMOD_FLAG(f) \
+			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= f;
 
 #define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
 			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
@@ -163,18 +166,22 @@ namespace reflect
             typeDesc->name_func = NULL; \
             typeDesc->alias = typeDesc->name;\
 
-#define REFLECT_STRUCT_MEMBER_FORWARD(name0,name1) \
+#define REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(name0,name1) \
 		int a = offsetof(T,name0);int b = offsetof(T,name1);\
         for(int i=0;i<typeDesc->members.size();i++) {\
 			if(strcmp(typeDesc->members[i].name,#name0)==0) {\
 				for(int j=0;j<typeDesc->members.size();j++) {\
 					if(strcmp(typeDesc->members[j].name,#name1)==0) { \
-						typeDesc->members[i].forward_output = j; \
+						typeDesc->members[i].in_place_output = j; \
 						std::cout << #name0 <<" FWD DST = "<<j<<", "<<typeDesc->members[j].name<<"\n";\
 					}\
 				}\
 			}\
 		}
+
+#define REFLECT_VKMOD_FORWARD_PASS() backward_pass = false;
+
+#define REFLECT_VKMOD_BACKWARD_PASS() backward_pass = true;
 
 #define REFLECT_STRUCT3_END() \
 		}
@@ -353,12 +360,9 @@ namespace reflect
 
 		Vulkan_Module* owner = NULL;
 		output_type* src_output = NULL;		
-		output_type* forward_output = NULL;	
+		output_type* in_place_output = NULL;	
 		bool ready = false;				
 		int status = INPUT_NOT_CONNECTED;
-
-		u64 forward_uid = 0;
-		
 
 		REFLECT3()
 	};
@@ -376,7 +380,7 @@ namespace reflect
 		Vulkan_Module* owner = NULL;
 		std::vector<input_type*> dest_inputs;	
 		TensorDimension dimensions; //not reflected
-		bool ready = false;						
+		bool ready = false;			
 
 		virtual void signal() = 0;
 		virtual void push() = 0;
@@ -614,8 +618,11 @@ public:
 
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) {}
 	virtual void run() {}
+	virtual void forward() {}
+	virtual void backward() {}
 	//bool load_resources();
-	bool all_resources_ready();
+	bool ready_forward();
+	bool ready_backward();
 	bool signaled();
 	void run_and_push();
 	void set_ptrs();
@@ -717,6 +724,8 @@ public:
 		}
 		return NULL;
 	}
+
+	Vulkan_Module* backward_pass_head = NULL;
 
 	REFLECT_VK_WORKFLOW()
 };

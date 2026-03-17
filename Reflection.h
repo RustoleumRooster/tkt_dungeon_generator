@@ -178,7 +178,7 @@ struct Member {
         const char* name;
         size_t offset;
         TypeDescriptor* type;
-        unsigned short forward_output; //used for vk modules
+        unsigned short in_place_output; //used for vk modules
         bool expanded;   //for editor widgets
         bool readwrite;  //for editor widgets
         bool modified;   //for editor widgets

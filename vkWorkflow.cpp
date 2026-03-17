@@ -3,6 +3,7 @@
 #include "vkUtilModules.h"
 #include "vkQuantizeModule.h"
 #include "vkWorkblock.h"
+#include "vkBCELossModule.h"
 
 Vulkan_Workflow::~Vulkan_Workflow()
 {
@@ -55,6 +56,12 @@ void Vulkan_Workflow::make_default_workflow()
 	final_block->input_dimension  = { 16,16,64,64 };
 	final_block->output_dimension = { 16,1,64,64 };
 
+	Create_Tensor_Module* ground_truth = new Create_Tensor_Module();
+	ground_truth->dimensions = { 16,1,64,64 };
+
+	BCE_Loss_Module* bce_loss = new BCE_Loss_Module();
+	bce_loss->input_dimensions = { 16,1,64,64 };
+
 	Modules.push_back(VkMod_Reference{ create_images });
 	Modules.push_back(VkMod_Reference{ scratchpad });
 	Modules.push_back(VkMod_Reference{ conv_block });
@@ -66,6 +73,10 @@ void Vulkan_Workflow::make_default_workflow()
 	Modules.push_back(VkMod_Reference{ up_block_2 });
 	Modules.push_back(VkMod_Reference{ up_block_3 });
 	Modules.push_back(VkMod_Reference{ final_block });
+	Modules.push_back(VkMod_Reference{ ground_truth });
+	Modules.push_back(VkMod_Reference{ bce_loss });
+
+	backward_pass_head = bce_loss;
 
 	std::vector<Vulkan_Module*> append_list;
 
@@ -117,6 +128,13 @@ void Vulkan_Workflow::make_default_workflow()
 	reflect::connect(&up_block_3->tail_output(), &final_block->input_tensor);
 	reflect::connect(&up_block_3->tail_output(), &final_block->head_input());
 
+	//=====================================================
+	// Loss
+	//
+
+	reflect::connect(&final_block->tail_output(), &bce_loss->predictions);
+	reflect::connect(&ground_truth->output_tensor, &bce_loss->ground_truth);
+
 	items.clear();
 	for (VkMod_Reference& ref : Modules)
 		items.push_back(ref.X);
@@ -136,6 +154,12 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 	{
 		if(mod.X->is_submodule == false)
 			mod.X->signaled();
+	}
+
+	if (backward_pass_head)
+	{
+		if(backward_pass_head->ready_backward())
+			backward_pass_head->backward();
 	}
 
 	vulkan->cleanup();

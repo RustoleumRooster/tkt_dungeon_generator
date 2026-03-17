@@ -10,17 +10,28 @@
 #include "vkAddModule.h"
 #include "vkNNUpModule.h"
 #include "vkSigmoidModule.h"
+#include "vkBCELossModule.h"
 
 REFLECT_VKMOD_BEGIN(Workblock_Module)
 	ALIAS("Workblock")		
-	REFLECT_STRUCT_MEMBER(input_tensor)
-	REFLECT_STRUCT_MEMBER(output_tensor)
+	//Forward Pass
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_MEMBER(output_tensor)
+	//Backward Pass
+REFLECT_VKMOD_BACKWARD_PASS()
+	REFLECT_VKMOD_MEMBER(input_grad)
+	REFLECT_VKMOD_MEMBER(output_grad)
 REFLECT_VKMOD_END()
 
 REFLECT_VKMOD_BEGIN(Convolution_Block)
 	ALIAS("Convolution Block")
-	REFLECT_STRUCT_MEMBER(input_tensor) //Actually belongs to Workblock_Module, but we can safely reflect it here as well
-	REFLECT_STRUCT_MEMBER(output_tensor) //Actually belongs to Workblock_Module, but we can safely reflect it here as well
+	//Forward Pass
+	REFLECT_VKMOD_MEMBER(input_tensor) //Actually belongs to Workblock_Module, but we can safely reflect it here as well
+	REFLECT_VKMOD_MEMBER(output_tensor) 
+	//Backward Pass
+REFLECT_VKMOD_BACKWARD_PASS()
+	REFLECT_VKMOD_MEMBER(input_grad) 
+	REFLECT_VKMOD_MEMBER(output_grad) 
 	INHERIT_FROM(Workblock_Module)
 REFLECT_VKMOD_END()
 
@@ -48,6 +59,12 @@ void Workblock_Module::run()
 		mod->signaled();
 
 	output_tensor.ready = true;
+}
+
+void Workblock_Module::backward()
+{
+	for (int i= modules.size()-1; i>=0; i--)
+		modules[i]->backward();
 }
 
 //============================================================
@@ -121,8 +138,13 @@ reflect::output<vkBufferResource>& Convolution_Block::tail_output()
 REFLECT_VKMOD_BEGIN(FinalBlock_Module)
 	ALIAS("Final Block")
 	INHERIT_FROM(Workblock_Module)
-	REFLECT_STRUCT_MEMBER(input_tensor)
-	REFLECT_STRUCT_MEMBER(output_tensor)
+	//Forward Pass
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_MEMBER(output_tensor)
+	//Backward Pass
+REFLECT_VKMOD_BACKWARD_PASS()
+	REFLECT_VKMOD_MEMBER(input_grad)
+	REFLECT_VKMOD_MEMBER(output_grad)
 REFLECT_VKMOD_END()
 
 void FinalBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
@@ -150,7 +172,9 @@ void FinalBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	modules.push_back(sigmoid);
 
 	reflect::connect(&conv->pass_output, &sigmoid->input_tensor);
+
 	reflect::connect(&scratchpad_buffer->scratchpad, &conv->scratchpad);
+
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -178,8 +202,8 @@ reflect::output<vkBufferResource>& FinalBlock_Module::tail_output()
 REFLECT_VKMOD_BEGIN(UpscaleBlock_Module)
 	ALIAS("Upscale Block")
 	INHERIT_FROM(Workblock_Module)
-	REFLECT_STRUCT_MEMBER(input_tensor)
-	REFLECT_STRUCT_MEMBER(output_tensor)
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_MEMBER(output_tensor)
 REFLECT_VKMOD_END()
 
 void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
@@ -258,8 +282,8 @@ reflect::output<vkBufferResource>& UpscaleBlock_Module::tail_output()
 REFLECT_VKMOD_BEGIN(ResBlock_Module)
 	ALIAS("Res Block")
 	INHERIT_FROM(Workblock_Module)
-	REFLECT_STRUCT_MEMBER(input_tensor)
-	REFLECT_STRUCT_MEMBER(output_tensor)
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_MEMBER(output_tensor)
 REFLECT_VKMOD_END()
 
 void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)

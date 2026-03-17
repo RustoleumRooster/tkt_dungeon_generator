@@ -262,7 +262,7 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 	}
 }
 
-bool Vulkan_Module::all_resources_ready()
+bool Vulkan_Module::ready_backward()
 {
 	reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
 
@@ -270,11 +270,37 @@ bool Vulkan_Module::all_resources_ready()
 	{
 		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
 
-		if (m_tD->inherited_type == &reflect::input_type::Reflection)
+		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
+			m.flags & REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS)
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			if (in->ready == false)
+			{
+				//TODO: log
 				return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool Vulkan_Module::ready_forward()
+{
+	reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
+
+	for (reflect::Member& m : tD->members)
+	{
+		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+
+		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
+			!(m.flags & REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS))
+		{
+			reflect::input_type* in = (reflect::input_type*)m.get(this);
+			if (in->ready == false)
+			{
+				//TODO: log
+				return false;
+			}
 		}
 	}
 	return true;
@@ -285,7 +311,7 @@ bool Vulkan_Module::signaled()
 	if (my_status != VK_MODULE_NOT_RAN)
 		return false;
 
-	if(all_resources_ready())
+	if(ready_forward())
 	{
 		reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
 
@@ -351,7 +377,7 @@ void Vulkan_Module::run_and_push()
 	if (my_status != VK_MODULE_NOT_RAN)
 		return;
 
-	if (all_resources_ready())
+	if (ready_forward())
 	{
 		reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
 
@@ -393,10 +419,10 @@ void Vulkan_Module::set_ptrs()
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			in->owner = this;
 
-			if (m.forward_output != 0xFF)
+			if (m.in_place_output != 0xFF)
 			{
-				reflect::Member& forward_m = tD->members[m.forward_output];
-				in->forward_output = (reflect::output_type*)forward_m.get(this);
+				reflect::Member& forward_m = tD->members[m.in_place_output];
+				in->in_place_output = (reflect::output_type*)forward_m.get(this);
 			}
 		}
 		else if (m_tD->inherited_type == output_tD)
@@ -430,10 +456,10 @@ reflect::input_type* Vulkan_Module::get_input_by_name(std::string str)
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			in->owner = this;
 
-			if (m.forward_output != 0xFF)
+			if (m.in_place_output != 0xFF)
 			{
-				reflect::Member& forward_m = tD->members[m.forward_output];
-				in->forward_output = (reflect::output_type*)forward_m.get(this);
+				reflect::Member& forward_m = tD->members[m.in_place_output];
+				in->in_place_output = (reflect::output_type*)forward_m.get(this);
 			}
 		}
 		else if (m_tD->inherited_type == output_tD)
@@ -903,9 +929,9 @@ void vkMemoryResource::find_consumers(reflect::output_type* out)
 
 		consumers.push_back(dest);
 
-		if (dest->forward_output != NULL)
+		if (dest->in_place_output != NULL)
 		{
-			find_consumers(dest->forward_output);
+			find_consumers(dest->in_place_output);
 		}
 	}
 }*/

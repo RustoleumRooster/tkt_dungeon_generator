@@ -10,6 +10,8 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe silu.comp --target-env=vulkan1.3  --target-
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe add.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/add.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe NN_up.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/NN_up.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe sigmoid.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/sigmoid.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe BCE_loss.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/BCE_loss.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe BCE_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/BCE_grad.spv
 
 
 

@@ -204,6 +204,9 @@
     <ClCompile Include="vkSigmoidModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkBCELossModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -296,6 +299,9 @@
     <ClInclude Include="vkSigmoidModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkBCELossModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv128.comp">
@@ -332,6 +338,12 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="sigmoid.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="bce_loss.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="bce_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>

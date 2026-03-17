@@ -37,9 +37,14 @@ struct Workblock_Module : public Vulkan_Module
 
 	virtual reflect::input<vkBufferResource>& head_input() { return input_tensor; }
 	virtual reflect::output<vkBufferResource>& tail_output() { return output_tensor; }
+	virtual reflect::input<vkBufferResource>& gradient_input() { return input_tensor; }
+	virtual reflect::output<vkBufferResource>& gradient_output() { return output_tensor; }
+	virtual void backward();
 
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> output_tensor;
+	reflect::input<vkBufferResource> input_grad;
+	reflect::output<vkBufferResource> output_grad;
 
 	std::vector<Vulkan_Module*> modules;
 
@@ -69,8 +74,8 @@ struct FinalBlock_Module : public Workblock_Module
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
 	Create_Tensor_Module* scratchpad_buffer = NULL;
-	Convolution_Module* conv     = NULL;
-	Sigmoid_Module*     sigmoid  = NULL;
+	Convolution_Module* conv		= NULL;
+	Sigmoid_Module*     sigmoid		= NULL;
 
 	REFLECT_VKMOD()
 };

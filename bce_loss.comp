@@ -1,0 +1,60 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Predictions
+{
+	float predictions[];
+};
+
+layout(std430, binding = 1) readonly buffer GroundTruth
+{
+	float ground_truth[];
+};
+
+layout(std430, binding = 2) buffer Loss
+{
+	float loss;
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n_elements;  // B * H * W  (C is always 1)
+} pc;
+
+layout(local_size_x = 256) in;
+
+// assumes subgroup size >= 32  (8 subgroups per workgroup)
+shared float sg_partials[8];
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	// each thread computes its BCE contribution (0 if out of range)
+	float bce = 0.0;
+	if (idx < pc.n_elements)
+	{
+		float p = clamp(predictions[idx], 1e-7, 1.0 - 1e-7);
+		float y = ground_truth[idx];
+		bce = -(y * log(p) + (1.0 - y) * log(1.0 - p));
+	}
+
+	// subgroup reduction
+	float subgroup_sum = subgroupAdd(bce);
+	if (subgroupElect())
+		sg_partials[gl_SubgroupID] = subgroup_sum;
+
+	barrier();
+
+	// thread 0 sums subgroup partials and contributes to global loss
+	if (gl_LocalInvocationID.x == 0)
+	{
+		float workgroup_sum = 0.0;
+		for (uint i = 0; i < gl_NumSubgroups; i++)
+			workgroup_sum += sg_partials[i];
+
+		atomicAdd(loss, workgroup_sum / float(pc.n_elements));
+	}
+}
