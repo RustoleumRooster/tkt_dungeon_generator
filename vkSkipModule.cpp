@@ -15,10 +15,10 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Skip_Module)
 	ALIAS("Skip")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_STRUCT_MEMBER(input_tensor)
-	REFLECT_STRUCT_MEMBER(pass_output)
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_MEMBER(pass_output)
 	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
-	REFLECT_STRUCT_MEMBER(skip_output)
+	REFLECT_VKMOD_MEMBER(skip_output)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 REFLECT_VKMOD_END()
 

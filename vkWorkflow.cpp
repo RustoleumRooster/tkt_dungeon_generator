@@ -164,5 +164,4 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 
 	vulkan->cleanup();
 
-	std::cout << "\033[31m" << "Red text" << "\033[0m" << "\n";
 }

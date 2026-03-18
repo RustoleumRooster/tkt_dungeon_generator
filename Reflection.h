@@ -445,7 +445,6 @@ struct TypeDescriptor_Struct : TypeDescriptor {
 
 #define REFLECT_STRUCT_MEMBER(name) \
         typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF});
-        //   {#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get()},
 
 #define REFLECT_STRUCT_MEMBER_FLAG(flag) \
         typeDesc->members[typeDesc->members.size()-1].flags |= flag;
