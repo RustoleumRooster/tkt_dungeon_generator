@@ -16,7 +16,7 @@ REFLECT_VKMOD_BEGIN(Sigmoid_Module)
 	ALIAS("Sigmoid Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(pass_output)
+	REFLECT_VKMOD_MEMBER(output_tensor)
 	REFLECT_VKMOD_MEMBER(grad_input)
 	REFLECT_VKMOD_MEMBER(grad_output)
 REFLECT_VKMOD_END()
@@ -57,7 +57,7 @@ void Sigmoid_Module::setDimensions()
 	pushconstants.h = input_dimensions.H;
 	pushconstants.w = input_dimensions.W;
 
-	// forward pass: in-place, pass_output shares buffer with input_tensor
+	// forward pass: in-place, output_tensor shares buffer with input_tensor
 	// backward pass: grad_output same shape as input
 	grad_output.dimensions = input_dimensions;
 }
@@ -81,8 +81,8 @@ void Sigmoid_Module::forward()
 
 	fwd_pass.createPipeline(m_device, "shaders/sigmoid.spv", push_constant);
 
-	pass_output.ready = true;
-	pass_output.X = input_tensor.X;
+	output_tensor.ready = true;
+	output_tensor.X = input_tensor.X;
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
@@ -120,10 +120,10 @@ void Sigmoid_Module::forward()
 
 void Sigmoid_Module::backward()
 {
-	// bindings: pass_output(0) [sigmoid(x) values], grad_input(1), grad_output(2)
-	// grad: dL/dx = grad_input * pass_output * (1 - pass_output)
+	// bindings: output_tensor(0) [sigmoid(x) values], grad_input(1), grad_output(2)
+	// grad: dL/dx = grad_input * output_tensor * (1 - output_tensor)
 	bwd_pass.bindings.resize(3);
-	bwd_pass.bindings[0] = pass_output.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[0] = output_tensor.X->getDescriptorSetLayout(0);
 	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
 	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
 	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
@@ -140,7 +140,7 @@ void Sigmoid_Module::backward()
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
-		writer.writeBuffer(0, pass_output.X->getDescriptorBufferInfo());
+		writer.writeBuffer(0, output_tensor.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, grad_input.X->getDescriptorBufferInfo());
 		writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
 		writer.build(bwd_pass.descriptorSets[0]);

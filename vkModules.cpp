@@ -108,14 +108,14 @@ REFLECT_STRUCT_END()
 
 REFLECT_STRUCT3_BEGIN(reflect::output_type)
 REFLECT_STRUCT_END()
-
+/*
 REFLECT_STRUCT3_BEGIN(reflect::parameter_type)
 REFLECT_STRUCT_END()
 
 REFLECT_CUSTOM_STRUCT_BEGIN_TEMPLATE(vkBufferResource, reflect::parameter)
 	INHERIT_FROM(reflect::parameter_type)
 REFLECT_STRUCT_END()
-
+*/
 REFLECT_STRUCT_BEGIN(reflect::vector2i)
 	REFLECT_STRUCT_MEMBER(X)
 	REFLECT_STRUCT_MEMBER(Y)
@@ -254,12 +254,12 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 		{
 			reflect::output_type* out = (reflect::output_type*)m.get(this);
 			out->vulkan = vulkan;
-		}
+		}/*
 		else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
 		{
 			reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
 			p->vulkan = vulkan;
-		}
+		}*/
 	}
 }
 
@@ -294,7 +294,7 @@ bool Vulkan_Module::ready_forward()
 		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
 
 		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
-			!(m.flags & REFLECT_VKMOD_COMPONENT_FEATM))
+			!(m.flags & REFLECT_VKMOD_COMPONENT_FEAT))
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			if (in->ready == false)
@@ -338,12 +338,12 @@ bool Vulkan_Module::signaled()
 			//		out->make_buffer();
 			//	}
 			}
-			else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
-			{
-				reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
-
-				p->make_buffer();
-			}
+			//else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
+			//{
+			//	reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
+//
+			//	p->make_buffer();
+			//}
 		}
 
 		run();
@@ -902,7 +902,7 @@ namespace reflect
 		X = vulkan->create_buffer(bufferSize,
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 	}
-
+	/*
 	template <>
 	void parameter<vkBufferResource>::make_buffer()
 	{
@@ -911,7 +911,7 @@ namespace reflect
 
 		X = vulkan->create_buffer(bufferSize,
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-	}
+	}*/
 }
 
 vkMemoryResource::vkMemoryResource(/*reflect::output_type* out*/)

@@ -125,7 +125,7 @@ namespace reflect
             typeDesc->alias = typeDesc->name;\
 			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->getNew = type::getNew;
 
-#define REFLECT_VKMOD_COMPONENT_FEATM 2
+#define REFLECT_VKMOD_COMPONENT_FEAT 2
 #define REFLECT_VKMOD_COMPONENT_PARAM 4
 #define REFLECT_VKMOD_COMPONENT_GRAD 8
 #define REFLECT_VKMOD_COMPONENT_UNK 0
@@ -136,15 +136,15 @@ namespace reflect
 
 #define REFLECT_VKMOD_PARAM(name) \
 			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
-			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_PARAM;
+			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_COMPONENT_PARAM;
 
-#define REFLECT_VKMOD_FEATM(name) \
+#define REFLECT_VKMOD_FEAT(name) \
 			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
-			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_FEATM;
+			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_COMPONENT_FEAT;
 
 #define REFLECT_VKMOD_GRAD(name) \
 			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
-			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_GRAD;
+			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_COMPONENT_GRAD;
 
 //#define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
 //			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
@@ -393,6 +393,17 @@ namespace reflect
 		virtual void signal() = 0;
 		virtual void push() = 0;
 
+		VkDeviceSize size() const
+		{
+			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(f32);
+		}
+
+		VkDeviceSize aligned_size(VkDeviceSize alignment) const
+		{
+			VkDeviceSize s = size();
+			return (s + alignment - 1) & ~(alignment - 1);
+		}
+
 		REFLECT3()
 	};
 
@@ -439,6 +450,7 @@ namespace reflect
 		REFLECT_CUSTOM_STRUCT()
 	};
 
+	/*
 	struct parameter_type : public inout_gui_type
 	{
 		virtual void make_buffer() = 0;
@@ -463,7 +475,7 @@ namespace reflect
 		virtual void make_buffer();
 
 		REFLECT_CUSTOM_STRUCT()
-	};
+	};*/
 
 	//void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out);
 	//void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out);
@@ -721,10 +733,15 @@ public:
 
 	void make_default_workflow();
 	void initialize_and_run(Vulkan_App* vulkan);
-
+	void plan_memory(Vulkan_App* vulkan);
 
 	void save();
 	void load();
+
+	vkBufferResource* feature_buffer = NULL;
+	vkBufferResource* param_buffer   = NULL;
+	vkBufferResource* grad_buffer    = NULL;
+	vkBufferResource* other_buffer   = NULL;
 
 	Vulkan_Module* get_module_by_uid(u64 uid)
 	{

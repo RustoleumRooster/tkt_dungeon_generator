@@ -44,7 +44,7 @@ struct Convolution_Module : public Vulkan_Module
 	TensorDimension input_dimensions{ 16,128,64,64 };
 	TensorDimension output_dimensions{ 16,128,32,32 };
 
-	Convolution_Module() : weights(mapped_weights)
+	Convolution_Module() 
 	{
 		set_ptrs();
 	}
@@ -98,9 +98,9 @@ struct Convolution_Module : public Vulkan_Module
 
 	std::vector<f32> mapped_weights;
 
-	reflect::parameter<vkBufferResource> weights;
+	reflect::output<vkBufferResource> weights;
 	reflect::input<vkBufferResource>     input_tensor;
-	reflect::output<vkBufferResource>    pass_output;
+	reflect::output<vkBufferResource>    output_tensor;
 	reflect::input<vkBufferResource>     grad_input;
 	reflect::output<vkBufferResource>    grad_output;
 	reflect::output<vkBufferResource>    grad_weights;
@@ -151,7 +151,7 @@ struct Normalization_Module : public Vulkan_Module
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> mean_buffer;
 	reflect::output<vkBufferResource> var_buffer;
-	reflect::output<vkBufferResource> pass_output;
+	//reflect::output<vkBufferResource> output_tensor;
 
 	REFLECT_VKMOD()
 };
@@ -161,7 +161,7 @@ struct Activation_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,32,32 };
 
-	Activation_Module() : parameters(mapped_parameters)
+	Activation_Module() 
 	{
 		set_ptrs();
 	}
@@ -196,13 +196,11 @@ struct Activation_Module : public Vulkan_Module
 	void execute();
 	void cleanup();
 
-	std::vector<f32> mapped_parameters;
-
 	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> pass_output;
+	reflect::output<vkBufferResource> output_tensor;
 	reflect::input<vkBufferResource> mean_buffer;
 	reflect::input<vkBufferResource> var_buffer;
-	reflect::parameter<vkBufferResource> parameters;
+	reflect::output<vkBufferResource> parameters;
 
 	REFLECT_VKMOD()
 };

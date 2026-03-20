@@ -17,9 +17,8 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Silu_Module)
 	ALIAS("SiLU Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(pass_output)
-	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 REFLECT_VKMOD_END()
 
 void Silu_Module::run()
@@ -35,8 +34,8 @@ void Silu_Module::run()
 
 	execute();
 
-	pass_output.ready = true;
-	pass_output.X = input_tensor.X;
+	output_tensor.ready = true;
+	output_tensor.X = input_tensor.X;
 
 	cleanup();
 }

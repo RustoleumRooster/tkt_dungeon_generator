@@ -16,7 +16,7 @@ REFLECT_VKMOD_BEGIN(Skip_Module)
 	ALIAS("Skip")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(pass_output)
+	REFLECT_VKMOD_MEMBER(output_tensor)
 	REFLECT_VKMOD_MEMBER(skip_output)
 REFLECT_VKMOD_END()
 
@@ -39,7 +39,7 @@ void Skip_Module::run()
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
-	pass_output.X = input_tensor.X;
-	pass_output.ready = true;
+	output_tensor.X = input_tensor.X;
+	output_tensor.ready = true;
 	skip_output.ready = true;
 }

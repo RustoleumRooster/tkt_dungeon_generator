@@ -61,7 +61,7 @@ struct Sigmoid_Module : public Vulkan_Module
 	virtual void run();
 
 	reflect::input<vkBufferResource>  input_tensor;
-	reflect::output<vkBufferResource> pass_output;
+	reflect::output<vkBufferResource> output_tensor;
 	reflect::input<vkBufferResource>  grad_input;
 	reflect::output<vkBufferResource> grad_output;
 

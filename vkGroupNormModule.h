@@ -19,7 +19,7 @@ struct GroupNorm_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,8,8 };
 
-	GroupNorm_Module() : parameters(mapped_parameters)
+	GroupNorm_Module() 
 	{
 		set_ptrs();
 	}
@@ -68,8 +68,8 @@ struct GroupNorm_Module : public Vulkan_Module
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    mean_buffer;
 	reflect::output<vkBufferResource>    var_buffer;
-	reflect::output<vkBufferResource>    pass_output;
-	reflect::parameter<vkBufferResource> parameters;
+	reflect::output<vkBufferResource>    output_tensor;
+	reflect::output<vkBufferResource> parameters;
 
 	REFLECT_VKMOD()
 };

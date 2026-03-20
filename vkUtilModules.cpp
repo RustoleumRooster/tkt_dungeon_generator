@@ -70,13 +70,13 @@ REFLECT_VKMOD_BEGIN(Convolution_Module)
 	ALIAS("Convolution Layer")
 	INHERIT_FROM(Vulkan_Module)
 	//Forward Pass
-	REFLECT_VKMOD_MEMBER(pass_output)
-	REFLECT_VKMOD_MEMBER(weights)
-	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
+	REFLECT_VKMOD_PARAM(weights)
+	REFLECT_VKMOD_FEAT(input_tensor)
 	//Backward Pass
-	REFLECT_VKMOD_MEMBER(grad_input)
-	REFLECT_VKMOD_MEMBER(grad_output)
-	REFLECT_VKMOD_MEMBER(grad_weights)
+	REFLECT_VKMOD_GRAD(grad_input)
+	REFLECT_VKMOD_GRAD(grad_output)
+	REFLECT_VKMOD_GRAD(grad_weights)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -110,7 +110,7 @@ void Convolution_Module::Pass::cleanup(VkDevice device)
 
 void Convolution_Module::setDimensions()
 {
-	pass_output.dimensions    = output_dimensions;
+	output_tensor.dimensions    = output_dimensions;
 	weights.dimensions        = { input_dimensions.C, output_dimensions.C, pushconstants.k, pushconstants.k };
 	grad_output.dimensions    = input_dimensions;
 	grad_weights.dimensions   = weights.dimensions;
@@ -129,11 +129,11 @@ void Convolution_Module::run()
 
 void Convolution_Module::forward()
 {
-	// bindings: weights(0), input_tensor(1), pass_output(2)
+	// bindings: weights(0), input_tensor(1), output_tensor(2)
 	fwd_pass.bindings.resize(3);
 	fwd_pass.bindings[0] = weights.X->getDescriptorSetLayout(0);
 	fwd_pass.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
-	fwd_pass.bindings[2] = pass_output.X->getDescriptorSetLayout(2);
+	fwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
@@ -149,14 +149,14 @@ void Convolution_Module::forward()
 
 	fwd_pass.createPipeline(m_device, spv, push_constant);
 
-	pass_output.ready = true;
+	output_tensor.ready = true;
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
 		writer.writeBuffer(0, weights.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
-		writer.writeBuffer(2, pass_output.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
@@ -316,7 +316,6 @@ REFLECT_VKMOD_BEGIN(Normalization_Module)
 	ALIAS("Normalization Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(pass_output)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
 	REFLECT_VKMOD_MEMBER(var_buffer)
 REFLECT_VKMOD_END()
@@ -339,8 +338,6 @@ void Normalization_Module::run()
 
 	mean_buffer.ready = true;
 	var_buffer.ready = true;
-	pass_output.ready = true;
-	pass_output.X = input_tensor.X;
 }
 
 void Normalization_Module::setDimensions()
@@ -442,17 +439,17 @@ void Normalization_Module::cleanup()
 REFLECT_VKMOD_BEGIN(Activation_Module)
 	ALIAS("Activation Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(pass_output)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
 	REFLECT_VKMOD_MEMBER(var_buffer)
-	REFLECT_VKMOD_MEMBER(parameters)
-	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
+	REFLECT_VKMOD_PARAM(parameters)
 REFLECT_VKMOD_END()
 
 void Activation_Module::setDimensions()
 {
 	parameters.dimensions = { 1,1,2,input_dimensions.C }; //two params per channel (gamma, beta)
+	output_tensor.dimensions = input_dimensions;
 }
 
 void Activation_Module::run()
@@ -466,8 +463,8 @@ void Activation_Module::run()
 
 	createComputePipeline("shaders/activate.spv", push_constant);
 
-	pass_output.ready = true;
-	pass_output.X = input_tensor.X;
+	output_tensor.ready = true;
+	output_tensor.X = input_tensor.X;
 
 	execute();
 	cleanup();

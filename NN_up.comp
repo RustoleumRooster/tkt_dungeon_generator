@@ -32,8 +32,9 @@ void main()
 
 	uint n = idx / CHW;
 	uint c = (idx % CHW) / HW;
-	uint h = HW / pc.W;
-	uint w = HW % pc.W;
+	uint hw = idx % HW;
+	uint h = hw / pc.W;
+	uint w = hw % pc.W;
 
 	float z = input_buf[n * pc.C * (pc.H / 2) * (pc.W / 2) +
 						c * (pc.H / 2) * (pc.W / 2) +  

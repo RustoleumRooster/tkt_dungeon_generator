@@ -15,9 +15,9 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Add_Module)
 	ALIAS("Add")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_a)
-	REFLECT_VKMOD_MEMBER(input_b)
-	REFLECT_VKMOD_MEMBER(output)
+	REFLECT_VKMOD_FEAT(input_a)
+	REFLECT_VKMOD_FEAT(input_b)
+	REFLECT_VKMOD_FEAT(output)
 REFLECT_VKMOD_END()
 
 void Add_Module::setDimensions()

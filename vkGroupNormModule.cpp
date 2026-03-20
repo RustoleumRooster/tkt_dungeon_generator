@@ -15,12 +15,11 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(GroupNorm_Module)
 	ALIAS("Group Norm Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
 	REFLECT_VKMOD_MEMBER(var_buffer)
-	REFLECT_VKMOD_MEMBER(parameters)
-	REFLECT_VKMOD_MEMBER(pass_output)
-	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
+	REFLECT_VKMOD_PARAM(parameters)
+	REFLECT_VKMOD_FEAT(output_tensor)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -57,7 +56,7 @@ void GroupNorm_Module::setDimensions()
 	mean_buffer.dimensions = { 1, 1, input_dimensions.B, pushconstants.num_groups };
 	var_buffer.dimensions  = { 1, 1, input_dimensions.B, pushconstants.num_groups };
 	parameters.dimensions  = { 1, 1, 2, input_dimensions.C }; // gamma, beta per channel
-	pass_output.dimensions = input_dimensions;
+	output_tensor.dimensions = input_dimensions;
 
 	pushconstants.n = input_dimensions.B;
 	pushconstants.c = input_dimensions.C;
@@ -90,8 +89,8 @@ void GroupNorm_Module::forward_A()
 
 	mean_buffer.ready = true;
 	var_buffer.ready  = true;
-	pass_output.ready = true;
-	pass_output.X     = input_tensor.X;
+	output_tensor.ready = true;
+	output_tensor.X     = input_tensor.X;
 
 	{
 		MyDescriptorWriter writer(*fwd_pass_A.descriptorSetLayout, *m_DescriptorPool);

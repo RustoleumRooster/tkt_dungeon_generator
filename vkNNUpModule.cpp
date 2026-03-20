@@ -15,8 +15,8 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(NNUp_Module)
 	ALIAS("NNUp")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input)
-	REFLECT_VKMOD_MEMBER(output)
+	REFLECT_VKMOD_FEAT(input)
+	REFLECT_VKMOD_FEAT(output)
 REFLECT_VKMOD_END()
 
 void NNUp_Module::setDimensions()

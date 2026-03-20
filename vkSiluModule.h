@@ -49,7 +49,7 @@ struct Silu_Module : public Vulkan_Module
 	void cleanup();
 
 	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> pass_output;
+	reflect::output<vkBufferResource> output_tensor;
 
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
