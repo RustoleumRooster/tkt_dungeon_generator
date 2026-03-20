@@ -15,14 +15,12 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(BCE_Loss_Module)
 	ALIAS("BCE Loss")
 	INHERIT_FROM(Vulkan_Module)
-REFLECT_VKMOD_FORWARD_PASS()
+
 	REFLECT_VKMOD_MEMBER(predictions)
 	REFLECT_VKMOD_MEMBER(ground_truth)
 	REFLECT_VKMOD_MEMBER(loss)
-		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
-REFLECT_VKMOD_BACKWARD_PASS()
+
 	REFLECT_VKMOD_MEMBER(gradient_out)
-		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 REFLECT_VKMOD_END()
 
 //============================================================

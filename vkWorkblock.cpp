@@ -17,9 +17,8 @@ REFLECT_VKMOD_BEGIN(Workblock_Module)
 	REFLECT_VKMOD_MEMBER(input_tensor)
 	REFLECT_VKMOD_MEMBER(output_tensor)
 	//Backward Pass
-REFLECT_VKMOD_BACKWARD_PASS()
-	REFLECT_VKMOD_MEMBER(input_grad)
-	REFLECT_VKMOD_MEMBER(output_grad)
+	REFLECT_VKMOD_GRAD(input_grad)
+	REFLECT_VKMOD_GRAD(output_grad)
 REFLECT_VKMOD_END()
 
 REFLECT_VKMOD_BEGIN(Convolution_Block)
@@ -28,9 +27,8 @@ REFLECT_VKMOD_BEGIN(Convolution_Block)
 	REFLECT_VKMOD_MEMBER(input_tensor) //Actually belongs to Workblock_Module, but we can safely reflect it here as well
 	REFLECT_VKMOD_MEMBER(output_tensor) 
 	//Backward Pass
-REFLECT_VKMOD_BACKWARD_PASS()
-	REFLECT_VKMOD_MEMBER(input_grad) 
-	REFLECT_VKMOD_MEMBER(output_grad) 
+	REFLECT_VKMOD_GRAD(input_grad) 
+	REFLECT_VKMOD_GRAD(output_grad) 
 	INHERIT_FROM(Workblock_Module)
 REFLECT_VKMOD_END()
 
@@ -134,7 +132,6 @@ REFLECT_VKMOD_BEGIN(FinalBlock_Module)
 	REFLECT_VKMOD_MEMBER(input_tensor)
 	REFLECT_VKMOD_MEMBER(output_tensor)
 	//Backward Pass
-REFLECT_VKMOD_BACKWARD_PASS()
 	REFLECT_VKMOD_MEMBER(input_grad)
 	REFLECT_VKMOD_MEMBER(output_grad)
 REFLECT_VKMOD_END()

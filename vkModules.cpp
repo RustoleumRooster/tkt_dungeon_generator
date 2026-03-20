@@ -272,7 +272,7 @@ bool Vulkan_Module::ready_backward()
 		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
 
 		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
-			m.flags & REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS)
+			m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			if (in->ready == false)
@@ -294,7 +294,7 @@ bool Vulkan_Module::ready_forward()
 		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
 
 		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
-			!(m.flags & REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS))
+			!(m.flags & REFLECT_VKMOD_COMPONENT_FEATM))
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			if (in->ready == false)
@@ -333,10 +333,10 @@ bool Vulkan_Module::signaled()
 			{
 				reflect::output_type* out = (reflect::output_type*)m.get(this);
 			
-				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
-				{
-					out->make_buffer();
-				}
+			//	if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
+			//	{
+			//		out->make_buffer();
+			//	}
 			}
 			else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
 			{
@@ -666,13 +666,15 @@ void Vulkan_App::pre_run_check()
 			}
 			else if (m_tD->inherited_type == output_tD)
 			{
+				//TODO
+				/*
 				reflect::output_type* out = (reflect::output_type*)m.get(vk);
 				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
 				{
 					vk->memory_needed = out->dimensions.size();
 					vk->log() << tD->alias << " memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
 					total_mem += (vk->memory_needed * 4);
-				}
+				}*/
 			}
 		}
 	}

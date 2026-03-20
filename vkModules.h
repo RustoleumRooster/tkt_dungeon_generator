@@ -117,7 +117,6 @@ namespace reflect
             return &type::Reflection;\
             }\
         void type::initReflection(reflect::TypeDescriptor_Struct* typeDesc) { \
-			bool backward_pass = false; \
             using T = type; \
             typeDesc->name = #type; \
             typeDesc->size = sizeof(T); \
@@ -126,20 +125,29 @@ namespace reflect
             typeDesc->alias = typeDesc->name;\
 			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->getNew = type::getNew;
 
-#define REFLECT_VKMOD_FLAG_TRANSITION_MODULE	2
-
-#define REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY	2
-#define REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS	4
+#define REFLECT_VKMOD_COMPONENT_FEATM 2
+#define REFLECT_VKMOD_COMPONENT_PARAM 4
+#define REFLECT_VKMOD_COMPONENT_GRAD 8
+#define REFLECT_VKMOD_COMPONENT_UNK 0
 
 #define REFLECT_VKMOD_MEMBER(name) \
         typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
-		if(backward_pass) typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS;
+//		if(backward_pass) typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS;
 
-#define REFLECT_VKMOD_FLAG(f) \
-			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= f;
+#define REFLECT_VKMOD_PARAM(name) \
+			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
+			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_PARAM;
 
-#define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
-			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
+#define REFLECT_VKMOD_FEATM(name) \
+			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
+			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_FEATM;
+
+#define REFLECT_VKMOD_GRAD(name) \
+			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
+			((reflect::TypeDescriptor_VkMod_Struct*)typeDesc)->flags |= REFLECT_VKMOD_COMPONENT_GRAD;
+
+//#define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
+//			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
 
 #define INHERIT_FROM(name) \
             typeDesc->inherited_type = (reflect::TypeDescriptor_Struct*)reflect::TypeResolver<name>::get();
