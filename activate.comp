@@ -3,9 +3,9 @@
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 #extension GL_EXT_shader_atomic_float : enable
 
-layout(std430, binding = 0) buffer OutputBuffer
+layout(std430, binding = 0) buffer InputBuffer
 {
-	float outputb[];
+	float inputb[];
 };
 
 layout(std430, binding = 1) readonly buffer MeanBuffer
@@ -24,14 +24,17 @@ layout(std430, binding = 3) readonly buffer Parameters
 	float parameters[];
 };
 
+layout(std430, binding = 4) buffer OutputBuffer
+{
+	float outputb[];
+};
+
 /*
 layout(std430, binding = 4) writeonly buffer resultsBuffer
 {
 	vec3 results[];
 };
 */
-
-
 
 layout(local_size_x = 256) in;
 
@@ -51,9 +54,9 @@ void main()
 	float scale   = gamma * inv_std;
 	float offset  = beta - mean[c] * scale;
 
-	float y = outputb[global_id] * scale + offset;
+	float y = inputb[global_id] * scale + offset;
 
-	//y = y > 0.0 ? y : y * 0.2;  // leaky relu
+	y = y > 0.0 ? y : y * 0.2;  // leaky relu
 
 	outputb[global_id] = y;
 }

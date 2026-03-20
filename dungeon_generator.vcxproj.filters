@@ -192,9 +192,6 @@
     <ClCompile Include="vkAddModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vkSkipModule.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="vkNNUpModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -282,9 +279,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkAddModule.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="vkSkipModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkNNUpModule.h">

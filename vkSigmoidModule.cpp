@@ -57,7 +57,7 @@ void Sigmoid_Module::setDimensions()
 	pushconstants.h = input_dimensions.H;
 	pushconstants.w = input_dimensions.W;
 
-	// forward pass: in-place, output_tensor shares buffer with input_tensor
+	output_tensor.dimensions = input_dimensions;
 	// backward pass: grad_output same shape as input
 	grad_output.dimensions = input_dimensions;
 }
@@ -82,7 +82,7 @@ void Sigmoid_Module::forward()
 	fwd_pass.createPipeline(m_device, "shaders/sigmoid.spv", push_constant);
 
 	output_tensor.ready = true;
-	output_tensor.X = input_tensor.X;
+	//output_tensor.X = input_tensor.X;
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);

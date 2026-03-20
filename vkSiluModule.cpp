@@ -35,13 +35,14 @@ void Silu_Module::run()
 	execute();
 
 	output_tensor.ready = true;
-	output_tensor.X = input_tensor.X;
 
 	cleanup();
 }
 
 void Silu_Module::setDimensions()
 {
+	output_tensor.dimensions = input_dimensions;
+
 	pushconstants.n = input_dimensions.B;
 	pushconstants.c = input_dimensions.C;
 	pushconstants.h = input_dimensions.H;

@@ -1,8 +1,13 @@
 #version 450
 
-layout(std430, binding = 0) buffer Tensor
+layout(std430, binding = 0) buffer InputBuffer
 {
-	float tensor[];
+	float input_b[];
+};
+
+layout(std430, binding = 0) buffer OutputBuffer
+{
+	float output_b[];
 };
 
 layout(push_constant) uniform PushConstants
@@ -23,6 +28,6 @@ void main()
 	if (idx >= total)
 		return;
 
-	float x      = tensor[idx];
-	tensor[idx]  = x / (1.0 + exp(-x));  // silu: x * sigmoid(x)
+	float x      = input_b[idx];
+	output_b[idx]  = x / (1.0 + exp(-x));  // silu: x * sigmoid(x)
 }

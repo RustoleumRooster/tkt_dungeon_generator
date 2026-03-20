@@ -5,6 +5,7 @@
 #include "vkWorkblock.h"
 #include "vkBCELossModule.h"
 #include <vulkan/vulkan.h>
+#include <cassert>
 
 Vulkan_Workflow::~Vulkan_Workflow()
 {
@@ -174,6 +175,20 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 {
 	const VkDeviceSize alignment = 256;
 
+	// Query total device-local memory
+	VkPhysicalDeviceMemoryProperties memProps{};
+	vkGetPhysicalDeviceMemoryProperties(vulkan->m_device->getPhysicalDevice(), &memProps);
+
+	VkDeviceSize device_local_total = 0;
+	for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i)
+	{
+		if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+			device_local_total += memProps.memoryHeaps[i].size;
+	}
+
+	auto mb = [](VkDeviceSize b) { return b / (1024.0 * 1024.0); };
+	std::cout << "[Memory Plan]  Device-local memory: " << mb(device_local_total) << " MB\n";
+
 	VkDeviceSize feature_total = 0;
 	VkDeviceSize param_total   = 0;
 	VkDeviceSize grad_total    = 0;
@@ -198,6 +213,9 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				reflect::output_type* out = (reflect::output_type*)m.get(mod);
 				VkDeviceSize sz = out->aligned_size(alignment);
 
+				assert(sz > 0 && "plan_memory: output buffer has zero size");
+				assert(sz < device_local_total && "plan_memory: single buffer exceeds total device memory");
+
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 					grad_total += sz;
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
@@ -210,13 +228,16 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 		}
 	}
 
-	auto mb = [](VkDeviceSize b) { return b / (1024.0 * 1024.0); };
+	VkDeviceSize grand_total = feature_total + param_total + grad_total + other_total;
+	assert(grand_total <= (device_local_total * 9 / 10) &&
+	       "plan_memory: total allocation exceeds 90% of device-local memory");
 
-	std::cout << "[Memory Plan]\n";
-	std::cout << "  Feature maps : " << mb(feature_total) << " MB  (" << feature_total << " B)\n";
-	std::cout << "  Parameters   : " << mb(param_total)   << " MB  (" << param_total   << " B)\n";
-	std::cout << "  Gradients    : " << mb(grad_total)    << " MB  (" << grad_total    << " B)\n";
-	std::cout << "  Other        : " << mb(other_total)   << " MB  (" << other_total   << " B)\n";
+	std::cout << "  Feature maps : " << mb(feature_total) << " MB\n";
+	std::cout << "  Parameters   : " << mb(param_total)   << " MB\n";
+	std::cout << "  Gradients    : " << mb(grad_total)    << " MB\n";
+	std::cout << "  Other        : " << mb(other_total)   << " MB\n";
+	std::cout << "  Total        : " << mb(grand_total)   << " MB  ("
+	          << mb(device_local_total * 9 / 10) << " MB budget)\n";
 
 	auto usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 	             VK_BUFFER_USAGE_TRANSFER_SRC_BIT   |

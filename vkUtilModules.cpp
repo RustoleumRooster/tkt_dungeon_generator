@@ -446,97 +446,107 @@ REFLECT_VKMOD_BEGIN(Activation_Module)
 	REFLECT_VKMOD_PARAM(parameters)
 REFLECT_VKMOD_END()
 
+//============================================================
+// Pass helpers
+//
+
+void Activation_Module::Pass::createPipeline(MyDevice* device, const char* spv,
+                                              VkPushConstantRange pushconstant)
+{
+	VkPipelineLayoutCreateInfo info{};
+	info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	info.setLayoutCount         = 1;
+	info.pSetLayouts            = &descriptorSetLayout->getDescriptorSetLayout();
+	info.pPushConstantRanges    = &pushconstant;
+	info.pushConstantRangeCount = 1;
+
+	vkCreatePipelineLayout(device->getDevice(), &info, nullptr, &pipelineLayout);
+	pipeline = new ComputePipeline(device, spv, pipelineLayout);
+}
+
+void Activation_Module::Pass::cleanup(VkDevice device)
+{
+	descriptorSetLayout->cleanup();
+	pipeline->cleanup();
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
+//============================================================
+// Module
+//
+
 void Activation_Module::setDimensions()
 {
-	parameters.dimensions = { 1,1,2,input_dimensions.C }; //two params per channel (gamma, beta)
+	pushconstants.n = input_dimensions.B;
+	pushconstants.c = input_dimensions.C;
+	pushconstants.h = input_dimensions.H;
+	pushconstants.w = input_dimensions.W;
+
+	parameters.dimensions    = { 1,1,2,input_dimensions.C }; // gamma + beta per channel
 	output_tensor.dimensions = input_dimensions;
 }
 
 void Activation_Module::run()
 {
-	createDescriptorSetLayout();
+	forward();
+}
+
+void Activation_Module::forward()
+{
+	// bindings: input(0), mean(1), var(2), parameters(3), output(4)
+	fwd_pass.bindings.resize(5);
+	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
+	fwd_pass.bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
+	fwd_pass.bindings[3] = parameters.X->getDescriptorSetLayout(3);
+	fwd_pass.bindings[4] = output_tensor.X->getDescriptorSetLayout(4);
+	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
-	push_constant.offset = 0;
-	push_constant.size = sizeof(pushconstant_struct);
+	push_constant.offset     = 0;
+	push_constant.size       = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	createComputePipeline("shaders/activate.spv", push_constant);
+	fwd_pass.createPipeline(m_device, "shaders/activate.spv", push_constant);
 
 	output_tensor.ready = true;
-	output_tensor.X = input_tensor.X;
 
-	execute();
-	cleanup();
-}
-
-void Activation_Module::createDescriptorSets()
-{
-	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
-
-	descriptorSets.resize(1);
-
-	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
-	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
-	writer.writeBuffer(3, parameters.X->getDescriptorBufferInfo());
-
-	writer.build(descriptorSets[0]);
-}
-
-void Activation_Module::createDescriptorSetLayout()
-{
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	bindings.resize(4);
-	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
-	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
-	bindings[3] = parameters.X->getDescriptorSetLayout(3);
-
-	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
-}
-
-void Activation_Module::execute()
-{
-	START_TIMER()
-	createDescriptorSets();
+	{
+		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
+		fwd_pass.descriptorSets.resize(1);
+		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(3, parameters.X->getDescriptorBufferInfo());
+		writer.writeBuffer(4, output_tensor.X->getDescriptorBufferInfo());
+		writer.build(fwd_pass.descriptorSets[0]);
+	}
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		pipeline->getPipeline());
+		fwd_pass.pipeline->getPipeline());
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
-		&descriptorSets[0], 0, 0);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	uint32_t n_threads = input_dimensions.B * input_dimensions.C * input_dimensions.H * input_dimensions.W;
+	uint32_t n_elements    = pushconstants.n * pushconstants.c * pushconstants.h * pushconstants.w;
+	uint32_t n_WorkGroups_x = (n_elements + 255) / 256;
 
-	uint32_t n_WorkGroups_x = n_threads / 256;
-	uint32_t n_WorkGroups_y = 1;
-	uint32_t n_WorkGroups_z = 1;
+	log() << "Activation forward: " << n_WorkGroups_x << " workgroups\n";
 
-	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
-
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
-	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	PRINT_TIMER(Normalize and Activate)
-}
-
-void Activation_Module::cleanup()
-{
-	descriptorSetLayout->cleanup();
-
-	pipeline->cleanup();
-
-	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
+	fwd_pass.cleanup(m_device->getDevice());
 }
 
 
