@@ -1,0 +1,41 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Activations
+{
+	float activation[];
+};
+
+layout(std430, binding = 1) readonly buffer InputGradient
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 2) buffer OutputGradient
+{
+	float grad_out[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint N;
+	uint C;
+	uint H;
+	uint W;
+} pc;
+
+// grad: dL/dx = grad_input * activation * (1 - activation)
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+	uint n_elements = pc. N * pc.C * pc.H * pc.W;
+
+	if(idx < n_elements)
+	{
+		grad_out[idx] = grad_in[idx] * activation[idx] * (1.0 - activation[idx]);
+	}
+
+}

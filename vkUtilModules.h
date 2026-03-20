@@ -44,7 +44,6 @@ struct Convolution_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,64,64 };
 	TensorDimension output_dimensions{ 16,128,32,32 };
-	TensorDimension weight_dimensions{ 128,128,4,4 };
 
 	Convolution_Module() : weights(mapped_weights)
 	{
@@ -60,35 +59,53 @@ struct Convolution_Module : public Vulkan_Module
 		u32 c_out;
 		u32 img_size_in;
 		u32 img_size_out;
+		u32 n;
 	};
 
 	pushconstant_struct pushconstants
 	{
-		4,//k
-		2,//s
-		1,//p
-		16,//c_in
-		16,//c_out
-		32,//h
-		32,//uw
+		4,  //k
+		2,  //s
+		1,  //p
+		128,//c_in
+		128,//c_out
+		64, //img_size_in
+		32, //img_size_out
+		16, //n
 	};
 
-	void setDimensions();
-	void createImages();
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
 
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass fwd_pass;
+	Pass bwd_pass;
+	Pass bwd_pass_B;
+
+	void setDimensions();
+	void forward();
+	void backward();
+	void backward_A();
+	void backward_B();
 	virtual void run();
-	void execute();
-	void read_results();
-	void cleanup();
 
 	std::vector<f32> mapped_weights;
 
 	reflect::parameter<vkBufferResource> weights;
-	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> pass_output;
-	reflect::input<vkBufferResource> scratchpad;
+	reflect::input<vkBufferResource>     input_tensor;
+	reflect::output<vkBufferResource>    pass_output;
+	reflect::input<vkBufferResource>     scratchpad;
+	reflect::input<vkBufferResource>     grad_input;
+	reflect::output<vkBufferResource>    grad_output;
+	reflect::output<vkBufferResource>    grad_weights;
 
 	REFLECT_VKMOD()
 };

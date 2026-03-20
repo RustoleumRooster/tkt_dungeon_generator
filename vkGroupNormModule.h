@@ -19,7 +19,7 @@ struct GroupNorm_Module : public Vulkan_Module
 {
 	TensorDimension input_dimensions{ 16,128,8,8 };
 
-	GroupNorm_Module()
+	GroupNorm_Module() : parameters(mapped_parameters)
 	{
 		set_ptrs();
 	}
@@ -37,26 +37,40 @@ struct GroupNorm_Module : public Vulkan_Module
 	{
 		16,  //n
 		128, //c
-		32,  //h
-		32,  //w
+		8,   //h
+		8,   //w
 		32,  //num_groups
 	};
 
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass fwd_pass_A;  // groupnorm.spv  — computes mean/var
+	Pass fwd_pass_B;  // groupnorm2.spv — applies gamma/beta
+
 	void setDimensions();
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
-
+	void forward_A();
+	void forward_B();
+	void backward();
 	virtual void run();
-	void execute();
-	void cleanup();
 
-	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> mean_buffer;
-	reflect::output<vkBufferResource> var_buffer;
-	reflect::output<vkBufferResource> pass_output;
-	reflect::input<vkBufferResource> scratchpad;
+	std::vector<f32> mapped_parameters;
 
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	reflect::input<vkBufferResource>     input_tensor;
+	reflect::output<vkBufferResource>    mean_buffer;
+	reflect::output<vkBufferResource>    var_buffer;
+	reflect::output<vkBufferResource>    pass_output;
+	reflect::input<vkBufferResource>     scratchpad;
+	reflect::parameter<vkBufferResource> parameters;
 
 	REFLECT_VKMOD()
 };

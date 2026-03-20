@@ -13,7 +13,6 @@ struct Convolution_Module;
 struct Normalization_Module;
 struct Activation_Module;
 struct GroupNorm_Module;
-struct GroupNorm2_Module;
 struct Silu_Module;
 struct Skip_Module;
 struct Add_Module;
@@ -90,7 +89,6 @@ struct UpscaleBlock_Module : public Workblock_Module
 	Create_Tensor_Module* scratchpad_buffer = NULL;
 	NNUp_Module*          nn_up       = NULL;
 	GroupNorm_Module*     group_norm  = NULL;
-	GroupNorm2_Module*    group_norm2 = NULL;
 	Silu_Module*          silu        = NULL;
 	Convolution_Module*   conv        = NULL;
 
@@ -105,9 +103,8 @@ struct ResBlock_Module : public Workblock_Module
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
 	Create_Tensor_Module* scratchpad_buffer = NULL;
-	Skip_Module*          skip       = NULL;
+	Skip_Module*          skip        = NULL;
 	GroupNorm_Module*     group_norm  = NULL;
-	GroupNorm2_Module*    group_norm2 = NULL;
 	Convolution_Module*   conv1 = NULL;
 	Silu_Module*          silu  = NULL;
 	Convolution_Module*   conv2 = NULL;

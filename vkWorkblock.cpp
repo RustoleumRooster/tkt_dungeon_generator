@@ -4,7 +4,6 @@
 #include "vkModules.h"
 #include "vkUtilModules.h"
 #include "vkGroupNormModule.h"
-#include "vkGroupNorm2Module.h"
 #include "vkSiluModule.h"
 #include "vkSkipModule.h"
 #include "vkAddModule.h"
@@ -220,12 +219,8 @@ void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_lis
 	nn_up->input_dimensions = { N, C_in, H, W };
 
 	group_norm = new GroupNorm_Module();
-	group_norm->input_dimensions  = { N, C_in, H*2, W*2 };
-	group_norm->pushconstants     = { N, C_in, H*2, W*2, 32 };
-
-	group_norm2 = new GroupNorm2_Module();
-	group_norm2->input_dimensions = { N, C_in, H*2, W*2 };
-	group_norm2->pushconstants    = { N, C_in, H*2, W*2, 32 };
+	group_norm->input_dimensions = { N, C_in, H*2, W*2 };
+	group_norm->pushconstants    = { N, C_in, H*2, W*2, 32 };
 
 	silu = new Silu_Module();
 	silu->input_dimensions = { N, C_in, H*2, W*2 };
@@ -241,19 +236,14 @@ void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_lis
 	modules.push_back(scratchpad_buffer);
 	modules.push_back(nn_up);
 	modules.push_back(group_norm);
-	modules.push_back(group_norm2);
 	modules.push_back(silu);
 	modules.push_back(conv);
 
-	reflect::connect(&nn_up->output,            &group_norm->input_tensor);
-	reflect::connect(&group_norm->mean_buffer,  &group_norm2->mean_buffer);
-	reflect::connect(&group_norm->var_buffer,   &group_norm2->var_buffer);
-	reflect::connect(&group_norm->pass_output,  &group_norm2->input_tensor);
-	reflect::connect(&group_norm2->pass_output, &silu->input_tensor);
-	reflect::connect(&silu->pass_output,        &conv->input_tensor);
+	reflect::connect(&nn_up->output,           &group_norm->input_tensor);
+	reflect::connect(&group_norm->pass_output, &silu->input_tensor);
+	reflect::connect(&silu->pass_output,       &conv->input_tensor);
 
 	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm2->scratchpad);
 	reflect::connect(&scratchpad_buffer->scratchpad, &conv->scratchpad);
 
 	for (Vulkan_Module* mod : modules)
@@ -301,11 +291,7 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 
 	group_norm = new GroupNorm_Module();
 	group_norm->input_dimensions = { N,C,H,W };
-	group_norm->pushconstants = { N,C,H,W, 32 };
-
-	group_norm2 = new GroupNorm2_Module();
-	group_norm2->input_dimensions = { N,C,H,W };
-	group_norm2->pushconstants = { N,C,H,W, 32 };
+	group_norm->pushconstants    = { N,C,H,W, 32 };
 
 	conv1 = new Convolution_Module();
 	conv1->input_dimensions  = { N,C,H,W };
@@ -325,7 +311,6 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	modules.push_back(scratchpad_buffer);
 	modules.push_back(skip);
 	modules.push_back(group_norm);
-	modules.push_back(group_norm2);
 	modules.push_back(conv1);
 	modules.push_back(silu);
 	modules.push_back(conv2);
@@ -334,23 +319,17 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	// skip branch
 	reflect::connect(&skip->pass_output, &group_norm->input_tensor);
 
-	// normalization chain
-	reflect::connect(&group_norm->mean_buffer, &group_norm2->mean_buffer);
-	reflect::connect(&group_norm->var_buffer,  &group_norm2->var_buffer);
-	reflect::connect(&group_norm->pass_output, &group_norm2->input_tensor);
-
 	// forward pass
-	reflect::connect(&group_norm2->pass_output, &conv1->input_tensor);
-	reflect::connect(&conv1->pass_output,        &silu->input_tensor);
-	reflect::connect(&silu->pass_output,         &conv2->input_tensor);
+	reflect::connect(&group_norm->pass_output, &conv1->input_tensor);
+	reflect::connect(&conv1->pass_output,      &silu->input_tensor);
+	reflect::connect(&silu->pass_output,       &conv2->input_tensor);
 
 	// add skip to output
-	reflect::connect(&conv2->pass_output,  &add->input_a);
-	reflect::connect(&skip->skip_output,   &add->input_b);
+	reflect::connect(&conv2->pass_output, &add->input_a);
+	reflect::connect(&skip->skip_output,  &add->input_b);
 
 	// scratchpad
 	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm2->scratchpad);
 	reflect::connect(&scratchpad_buffer->scratchpad, &conv1->scratchpad);
 	reflect::connect(&scratchpad_buffer->scratchpad, &conv2->scratchpad);
 

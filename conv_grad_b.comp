@@ -1,0 +1,83 @@
+#version 450
+
+// bindings: input_tensor(0), grad_in(1), grad_weights(2)
+//
+// Each thread owns one weight [oc, ic, kh, kw] and
+// accumulates its gradient by summing over (N, oh, ow).
+
+layout(std430, binding = 0) readonly buffer InputTensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 1) readonly buffer InputGradient
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 2) buffer WeightGradients
+{
+	float grad_weights[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint k;
+	uint s;
+	uint p;
+	uint c_in;
+	uint c_out;
+	uint img_size_in;
+	uint img_size_out;
+	uint n;
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+	uint kk  = pc.k * pc.k;
+
+	if (idx >= pc.c_out * pc.c_in * kk)
+		return;
+
+	// decompose flat index -> (oc, ic, kh, kw)
+	uint oc   = idx / (pc.c_in * kk);
+	uint rem  = idx % (pc.c_in * kk);
+	uint ic   = rem / kk;
+	uint kpos = rem % kk;
+	uint kh   = kpos / pc.k;
+	uint kw   = kpos % pc.k;
+
+	uint OH = pc.img_size_out;
+	uint OW = pc.img_size_out;
+	uint IH = pc.img_size_in;
+	uint IW = pc.img_size_in;
+
+	float dw = 0.0;
+
+	for (uint batch = 0; batch < pc.n; batch++)
+		for (uint oh = 0; oh < OH; oh++)
+			for (uint ow = 0; ow < OW; ow++)
+			{
+				int ih = int(oh * pc.s) - int(pc.p) + int(kh);
+				int iw = int(ow * pc.s) - int(pc.p) + int(kw);
+
+				if (ih >= 0 && iw >= 0 && ih < int(IH) && iw < int(IW))
+				{
+					float g = grad_in[batch * pc.c_out * OH * OW
+					                  + oc   * OH * OW
+					                  + oh   * OW
+					                  + ow];
+
+					float a = input_tensor[batch * pc.c_in * IH * IW
+					                       + ic   * IH * IW
+					                       + uint(ih) * IW
+					                       + uint(iw)];
+					dw += g * a;
+				}
+			}
+
+	grad_weights[idx] = dw;
+}

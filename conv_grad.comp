@@ -1,0 +1,69 @@
+#version 450
+
+// bindings: weights(0), grad_input(1), grad_output(2)
+
+layout(std430, binding = 0) readonly buffer Weights
+{
+	float weights[];
+};
+
+layout(std430, binding = 1) readonly buffer InputGradient
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 2) buffer OutputGradient
+{
+	float grad_out[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint k;
+	uint s;
+	uint p;
+	uint c_in;
+	uint c_out;
+	uint img_size_in;
+	uint img_size_out;
+	uint n;
+} pc;
+
+layout(local_size_x = 128) in;
+
+//each thread owns one input position [ih, iw, ic]
+//
+
+void main()
+{
+	uint iw = gl_WorkGroupID.x;
+	uint ih = gl_WorkGroupID.y;        
+	uint N  = gl_WorkGroupID.z;
+	uint ic = gl_LocalInvocationID.x;
+	uint HW = pc.img_size_in * pc.img_size_in;
+
+	uint OH = pc.img_size_out;
+	uint OW = pc.img_size_out;
+
+	if(ic >= pc.c_in)
+		return;
+
+	//loop over output spatial dim and channels [oc, oh->kh, ow->kw]
+	//
+
+	float x = 0.0;
+	for(int c=0; c<pc.c_out; c++)
+		for(int oh=0; oh<OH; oh++)
+			for(int ow=0; ow<OW; ow++)
+			{
+				int kh = int(ih) - oh * int(pc.s) + int(pc.p);
+				int kw = int(iw) - ow * int(pc.s) + int(pc.p);
+				if( kh >=0 && kw >=0 && kh < pc.k && kw < pc.k)
+				{
+					x += weights[(c * pc.c_in * pc.k * pc.k) + (ic * pc.k * pc.k) + kh * pc.k + kw] * 
+							grad_in[N * pc.c_out * OH * OW + c * OH * OW + oh * OW + ow];
+				}
+			}
+
+	grad_out[N * pc.c_in * HW + ic * HW + ih * pc.img_size_in + iw] = x; 
+}
