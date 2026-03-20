@@ -649,6 +649,9 @@ public:
 
 	reflect::vector2i pos{ 0,0 };
 
+	vkBufferResource* scratchpad = NULL;
+	void read_results();
+
 	REFLECT_VKMOD()
 };
 

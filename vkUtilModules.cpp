@@ -37,7 +37,6 @@ REFLECT_VKMOD_BEGIN(Create_Tensor_Module)
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_MEMBER(output_tensor)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
-	REFLECT_VKMOD_MEMBER(scratchpad)
 REFLECT_VKMOD_END()
 
 void Create_Tensor_Module::run()
@@ -62,22 +61,6 @@ void Create_Tensor_Module::setDimensions()
 
 void Create_Tensor_Module::createImages(bool random_data)
 {
-	/*
-	int n_indices = dimensions.B * dimensions.C * dimensions.H * dimensions.W;
-	VkDeviceSize bufferSize = sizeof(float) * n_indices;
-
-	output_tensor.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		&output_tensor);
-		*/
-	//////////////////////
-
-	VkDeviceSize sc_bufferSize = sizeof(aligned_vec3) * 512;
-
-	scratchpad.X = vulkan->create_buffer(sc_bufferSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-	scratchpad.ready = true;
 }
 
 //=======================================================
@@ -92,7 +75,6 @@ REFLECT_VKMOD_FORWARD_PASS()
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_VKMOD_MEMBER(weights)
 	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(scratchpad)
 REFLECT_VKMOD_BACKWARD_PASS()
 	REFLECT_VKMOD_MEMBER(grad_input)
 	REFLECT_VKMOD_MEMBER(grad_output)
@@ -150,12 +132,11 @@ void Convolution_Module::run()
 
 void Convolution_Module::forward()
 {
-	// bindings: weights(0), input_tensor(1), pass_output(2), scratchpad(3)
-	fwd_pass.bindings.resize(4);
+	// bindings: weights(0), input_tensor(1), pass_output(2)
+	fwd_pass.bindings.resize(3);
 	fwd_pass.bindings[0] = weights.X->getDescriptorSetLayout(0);
 	fwd_pass.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
 	fwd_pass.bindings[2] = pass_output.X->getDescriptorSetLayout(2);
-	fwd_pass.bindings[3] = scratchpad.X->getDescriptorSetLayout(3);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
@@ -179,7 +160,6 @@ void Convolution_Module::forward()
 		writer.writeBuffer(0, weights.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
 		writer.writeBuffer(2, pass_output.X->getDescriptorBufferInfo());
-		writer.writeBuffer(3, scratchpad.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
@@ -344,7 +324,6 @@ REFLECT_VKMOD_BEGIN(Normalization_Module)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_VKMOD_MEMBER(var_buffer)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
-	REFLECT_VKMOD_MEMBER(scratchpad)
 	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
 REFLECT_VKMOD_END()
 
@@ -401,18 +380,17 @@ void Normalization_Module::createDescriptorSets()
 	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
 	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
-	writer.writeBuffer(3, scratchpad.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
 
 void Normalization_Module::createDescriptorSetLayout()
 {
-	bindings.resize(4);
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	bindings.resize(3);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
 	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
-	bindings[3] = scratchpad.X->getDescriptorSetLayout(3);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }
@@ -452,42 +430,6 @@ void Normalization_Module::execute()
 	PRINT_TIMER(Calc Mean and Var)
 }
 
-void Normalization_Module::read_results()
-{
-	aligned_vec3* hit_results = NULL;
-
-	uint16_t bSize = 256 * 2;
-	VkDeviceSize bufferSize = sizeof(aligned_vec3) * bSize;
-
-	hit_results = new aligned_vec3[bSize];
-	for (int i = 0; i < bSize; i++) {
-		hit_results[i].V = vector3df{ 0,0,0 };
-	}
-
-	MyBufferObject stagingBuffer(m_device, sizeof(aligned_vec3), 256 * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-
-	m_device->copyBuffer(scratchpad.X->Buffer, stagingBuffer.getBuffer(), sizeof(aligned_vec3) * 256 * 2);
-
-	stagingBuffer.readFromBuffer((void*)hit_results);
-
-	for (int i = 0; i < 256; i++)
-	{
-		//cout << hit_results[i].V.X << " ";
-		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
-	}
-
-	log() << "\n";
-
-	for (int i = 0; i < 10; i++)
-	{
-		//cout PRINTV(hit_results[i].V) << "\n";
-	}
-
-	delete[] hit_results;
-	
-}
 
 void Normalization_Module::cleanup()
 {
@@ -511,7 +453,6 @@ REFLECT_VKMOD_BEGIN(Activation_Module)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
 	REFLECT_VKMOD_MEMBER(var_buffer)
 	REFLECT_VKMOD_MEMBER(parameters)
-	REFLECT_VKMOD_MEMBER(results_buffer)
 	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(input_tensor, pass_output)
 REFLECT_VKMOD_END()
 
@@ -548,19 +489,18 @@ void Activation_Module::createDescriptorSets()
 	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
 	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
 	writer.writeBuffer(3, parameters.X->getDescriptorBufferInfo());
-	writer.writeBuffer(4, results_buffer.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
 
 void Activation_Module::createDescriptorSetLayout()
 {
-	bindings.resize(5);
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	bindings.resize(4);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
 	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
 	bindings[3] = parameters.X->getDescriptorSetLayout(3);
-	bindings[4] = results_buffer.X->getDescriptorSetLayout(4);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }

@@ -69,7 +69,6 @@ struct GroupNorm_Module : public Vulkan_Module
 	reflect::output<vkBufferResource>    mean_buffer;
 	reflect::output<vkBufferResource>    var_buffer;
 	reflect::output<vkBufferResource>    pass_output;
-	reflect::input<vkBufferResource>     scratchpad;
 	reflect::parameter<vkBufferResource> parameters;
 
 	REFLECT_VKMOD()

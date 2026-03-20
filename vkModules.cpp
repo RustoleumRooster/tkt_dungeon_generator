@@ -12,6 +12,7 @@
 //#include "my_reflected_nodes.h"
 #include <vulkan/vulkan.h>
 #include "reflect_custom_types.h"
+#include "soa.h"
 
 using namespace irr;
 using namespace core;
@@ -1050,3 +1051,39 @@ REFLECT_STRUCT3_END()
 REFLECT_VK_WORKFLOW_BEGIN(Vulkan_Workflow)
 	REFLECT_STRUCT_MEMBER(Modules)
 REFLECT_STRUCT_END()
+
+void Vulkan_Module::read_results()
+{
+	aligned_vec3* hit_results = NULL;
+
+	uint16_t bSize = 256 * 2;
+	VkDeviceSize bufferSize = sizeof(aligned_vec3) * bSize;
+
+	hit_results = new aligned_vec3[bSize];
+	for (int i = 0; i < bSize; i++) {
+		hit_results[i].V = vector3df{ 0,0,0 };
+	}
+
+	MyBufferObject stagingBuffer(m_device, sizeof(aligned_vec3), 256 * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+	m_device->copyBuffer(scratchpad->Buffer, stagingBuffer.getBuffer(), sizeof(aligned_vec3) * 256 * 2);
+
+	stagingBuffer.readFromBuffer((void*)hit_results);
+
+	for (int i = 0; i < 256; i++)
+	{
+		//cout << hit_results[i].V.X << " ";
+		//graph.lines.push_back(line3df(hit_results[i].V, hit_results[256 + i].V));
+	}
+
+	log() << "\n";
+
+	for (int i = 0; i < 10; i++)
+	{
+		//cout PRINTV(hit_results[i].V) << "\n";
+	}
+
+	delete[] hit_results;
+}

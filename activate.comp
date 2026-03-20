@@ -24,10 +24,12 @@ layout(std430, binding = 3) readonly buffer Parameters
 	float parameters[];
 };
 
+/*
 layout(std430, binding = 4) writeonly buffer resultsBuffer
 {
 	vec3 results[];
 };
+*/
 
 
 

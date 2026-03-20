@@ -35,7 +35,6 @@ public:
 	void createImages(bool random_data = false);
 
 	reflect::output<vkBufferResource> output_tensor;
-	reflect::output<vkBufferResource> scratchpad;
 
 	REFLECT_VKMOD()
 };
@@ -102,7 +101,6 @@ struct Convolution_Module : public Vulkan_Module
 	reflect::parameter<vkBufferResource> weights;
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    pass_output;
-	reflect::input<vkBufferResource>     scratchpad;
 	reflect::input<vkBufferResource>     grad_input;
 	reflect::output<vkBufferResource>    grad_output;
 	reflect::output<vkBufferResource>    grad_weights;
@@ -148,16 +146,12 @@ struct Normalization_Module : public Vulkan_Module
 
 	virtual void run();
 	void execute();
-	void read_results();
 	void cleanup();
 
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> mean_buffer;
 	reflect::output<vkBufferResource> var_buffer;
 	reflect::output<vkBufferResource> pass_output;
-	reflect::input<vkBufferResource> scratchpad;
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
 	REFLECT_VKMOD()
 };
@@ -209,9 +203,6 @@ struct Activation_Module : public Vulkan_Module
 	reflect::input<vkBufferResource> mean_buffer;
 	reflect::input<vkBufferResource> var_buffer;
 	reflect::parameter<vkBufferResource> parameters;
-	reflect::input<vkBufferResource> results_buffer;
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
 	REFLECT_VKMOD()
 };

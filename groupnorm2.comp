@@ -24,10 +24,12 @@ layout(std430, binding = 3) readonly buffer Var_buffer
 	float var_buffer[];
 };
 
+/*
 layout(std430, binding = 4) writeonly buffer resultsBuffer
 {
 	vec3 results[];
 };
+*/
 
 layout(push_constant) uniform PushConstants
 {

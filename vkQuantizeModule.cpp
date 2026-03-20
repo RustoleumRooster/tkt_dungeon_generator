@@ -31,7 +31,6 @@ REFLECT_VKMOD_BEGIN(Quantize_Module)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_VKMOD_MEMBER(output)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
-	REFLECT_VKMOD_MEMBER(results_buffer)
 REFLECT_VKMOD_END()
 
 void Quantize_Module::run()
@@ -67,18 +66,17 @@ void Quantize_Module::createDescriptorSets()
 	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 	writer.writeBuffer(1, codebook.X->getDescriptorBufferInfo());
 	writer.writeBuffer(2, output.X->getDescriptorBufferInfo());
-	writer.writeBuffer(3, results_buffer.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
 
 void Quantize_Module::createDescriptorSetLayout()
 {
-	bindings.resize(4);
+	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	bindings.resize(3);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = codebook.X->getDescriptorSetLayout(1);
 	bindings[2] = output.X->getDescriptorSetLayout(2);
-	bindings[3] = results_buffer.X->getDescriptorSetLayout(3);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }

@@ -15,10 +15,12 @@ layout(std430, binding = 2) writeonly buffer Output_tensor
 	float output_tensor[];
 };
 
+/*
 layout(std430, binding = 3) writeonly buffer resultsBuffer
 {
 	vec3 results[];
 };
+*/
 
 layout(push_constant) uniform PushConstants {
 	uint k;

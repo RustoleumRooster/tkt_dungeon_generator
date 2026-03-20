@@ -57,7 +57,6 @@ struct Convolution_Block : public Workblock_Module
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
-	Create_Tensor_Module* scratchpad_buffer = NULL;
 	Convolution_Module* conv = NULL;
 	Normalization_Module* norm = NULL;
 	Activation_Module* activate = NULL;
@@ -72,7 +71,6 @@ struct FinalBlock_Module : public Workblock_Module
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
-	Create_Tensor_Module* scratchpad_buffer = NULL;
 	Convolution_Module* conv		= NULL;
 	Sigmoid_Module*     sigmoid		= NULL;
 
@@ -86,7 +84,6 @@ struct UpscaleBlock_Module : public Workblock_Module
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
-	Create_Tensor_Module* scratchpad_buffer = NULL;
 	NNUp_Module*          nn_up       = NULL;
 	GroupNorm_Module*     group_norm  = NULL;
 	Silu_Module*          silu        = NULL;
@@ -102,7 +99,6 @@ struct ResBlock_Module : public Workblock_Module
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
 
-	Create_Tensor_Module* scratchpad_buffer = NULL;
 	Skip_Module*          skip        = NULL;
 	GroupNorm_Module*     group_norm  = NULL;
 	Convolution_Module*   conv1 = NULL;

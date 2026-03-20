@@ -77,8 +77,6 @@ void Convolution_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	u32 H = input_dimension.H;
 	u32 W = input_dimension.W;
 
-	scratchpad_buffer = new Create_Tensor_Module();
-
 	conv = new Convolution_Module();
 	conv->pushconstants.k = 4;
 	conv->pushconstants.s = 2;
@@ -96,7 +94,6 @@ void Convolution_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	activate = new Activation_Module();
 	activate->input_dimensions = { N,C, H / 2, W / 2 };
 
-	modules.push_back(scratchpad_buffer);
 	modules.push_back(conv);
 	modules.push_back(norm);
 	modules.push_back(activate);
@@ -106,10 +103,6 @@ void Convolution_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 
 	reflect::connect(&norm->mean_buffer, &activate->mean_buffer);
 	reflect::connect(&norm->var_buffer, &activate->var_buffer);
-
-	reflect::connect(&scratchpad_buffer->scratchpad, &conv->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &norm->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &activate->results_buffer);
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -148,8 +141,6 @@ REFLECT_VKMOD_END()
 
 void FinalBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 {
-	scratchpad_buffer = new Create_Tensor_Module();
-
 	u32 N   = input_dimension.B;
 	u32 C   = input_dimension.C;
 	u32 H   = input_dimension.H;
@@ -166,13 +157,10 @@ void FinalBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	sigmoid->input_dimensions = { N, 1, H, W };
 	sigmoid->pushconstants    = { N, 1, H, W };
 
-	modules.push_back(scratchpad_buffer);
 	modules.push_back(conv);
 	modules.push_back(sigmoid);
 
 	reflect::connect(&conv->pass_output, &sigmoid->input_tensor);
-
-	reflect::connect(&scratchpad_buffer->scratchpad, &conv->scratchpad);
 
 
 	for (Vulkan_Module* mod : modules)
@@ -213,8 +201,6 @@ void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_lis
 	u32 W    = input_dimension.W;
 	u32 C_out = output_dimension.C;
 
-	scratchpad_buffer = new Create_Tensor_Module();
-
 	nn_up = new NNUp_Module();
 	nn_up->input_dimensions = { N, C_in, H, W };
 
@@ -233,7 +219,6 @@ void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_lis
 	conv->input_dimensions  = { N, C_in,  H*2, W*2 };
 	conv->output_dimensions = { N, C_out, H*2, W*2 };
 
-	modules.push_back(scratchpad_buffer);
 	modules.push_back(nn_up);
 	modules.push_back(group_norm);
 	modules.push_back(silu);
@@ -242,9 +227,6 @@ void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_lis
 	reflect::connect(&nn_up->output,           &group_norm->input_tensor);
 	reflect::connect(&group_norm->pass_output, &silu->input_tensor);
 	reflect::connect(&silu->pass_output,       &conv->input_tensor);
-
-	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &conv->scratchpad);
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -283,9 +265,6 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	u32 H = input_dimension.H;
 	u32 W = input_dimension.W;
 
-	scratchpad_buffer = new Create_Tensor_Module();
-	scratchpad_buffer->dimensions = { 1,1,1,512 };
-
 	skip = new Skip_Module();
 	skip->input_dimensions = { N,C,H,W };
 
@@ -308,7 +287,6 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	add = new Add_Module();
 	add->input_dimensions = { N,C,H,W };
 
-	modules.push_back(scratchpad_buffer);
 	modules.push_back(skip);
 	modules.push_back(group_norm);
 	modules.push_back(conv1);
@@ -327,11 +305,6 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	// add skip to output
 	reflect::connect(&conv2->pass_output, &add->input_a);
 	reflect::connect(&skip->skip_output,  &add->input_b);
-
-	// scratchpad
-	reflect::connect(&scratchpad_buffer->scratchpad, &group_norm->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &conv1->scratchpad);
-	reflect::connect(&scratchpad_buffer->scratchpad, &conv2->scratchpad);
 
 	for (Vulkan_Module* mod : modules)
 	{

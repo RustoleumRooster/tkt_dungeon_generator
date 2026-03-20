@@ -17,7 +17,6 @@ REFLECT_VKMOD_BEGIN(GroupNorm_Module)
 	INHERIT_FROM(Vulkan_Module)
 REFLECT_VKMOD_FORWARD_PASS()
 	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(scratchpad)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
 		REFLECT_VKMOD_MEMBER_CREATE_MEMORY()
 	REFLECT_VKMOD_MEMBER(var_buffer)
@@ -77,13 +76,12 @@ void GroupNorm_Module::run()
 
 void GroupNorm_Module::forward_A()
 {
-	// bindings: input_tensor(0), mean_buffer(1), var_buffer(2), scratchpad(3)
+	// bindings: input_tensor(0), mean_buffer(1), var_buffer(2)
 	// computes per-group mean and variance
-	fwd_pass_A.bindings.resize(4);
+	fwd_pass_A.bindings.resize(3);
 	fwd_pass_A.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass_A.bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
 	fwd_pass_A.bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
-	fwd_pass_A.bindings[3] = scratchpad.X->getDescriptorSetLayout(3);
 	fwd_pass_A.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass_A.bindings);
 
 	VkPushConstantRange push_constant;
@@ -104,7 +102,6 @@ void GroupNorm_Module::forward_A()
 		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
 		writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
-		writer.writeBuffer(3, scratchpad.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass_A.descriptorSets[0]);
 	}
 
@@ -136,14 +133,13 @@ void GroupNorm_Module::forward_A()
 
 void GroupNorm_Module::forward_B()
 {
-	// bindings: input_tensor(0), parameters(1), mean_buffer(2), var_buffer(3), scratchpad(4)
+	// bindings: input_tensor(0), parameters(1), mean_buffer(2), var_buffer(3)
 	// applies normalization with learned gamma/beta in-place
-	fwd_pass_B.bindings.resize(5);
+	fwd_pass_B.bindings.resize(4);
 	fwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass_B.bindings[1] = parameters.X->getDescriptorSetLayout(1);
 	fwd_pass_B.bindings[2] = mean_buffer.X->getDescriptorSetLayout(2);
 	fwd_pass_B.bindings[3] = var_buffer.X->getDescriptorSetLayout(3);
-	fwd_pass_B.bindings[4] = scratchpad.X->getDescriptorSetLayout(4);
 	fwd_pass_B.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass_B.bindings);
 
 	VkPushConstantRange push_constant;
@@ -160,7 +156,6 @@ void GroupNorm_Module::forward_B()
 		writer.writeBuffer(1, parameters.X->getDescriptorBufferInfo());
 		writer.writeBuffer(2, mean_buffer.X->getDescriptorBufferInfo());
 		writer.writeBuffer(3, var_buffer.X->getDescriptorBufferInfo());
-		writer.writeBuffer(4, scratchpad.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass_B.descriptorSets[0]);
 	}
 
