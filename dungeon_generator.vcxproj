@@ -242,6 +242,7 @@
     <None Include="sigmoid_grad.comp" />
     <None Include="silu.comp" />
     <None Include="silu_grad.comp" />
+    <None Include="skip_grad.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

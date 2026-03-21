@@ -1,0 +1,35 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer GradInput
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 1) writeonly buffer GradOutputA
+{
+	float grad_out_a[];
+};
+
+layout(std430, binding = 2) writeonly buffer GradOutputB
+{
+	float grad_out_b[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n_elements;
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	if (idx >= pc.n_elements)
+		return;
+
+	// Add backward: gradient passes through unchanged to both branches
+	grad_out_a[idx] = grad_in[idx];
+	grad_out_b[idx] = grad_in[idx];
+}

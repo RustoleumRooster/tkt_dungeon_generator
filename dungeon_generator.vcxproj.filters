@@ -355,5 +355,8 @@
     <None Include="silu_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
+    <None Include="skip_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>
