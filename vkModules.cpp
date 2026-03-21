@@ -13,6 +13,7 @@
 #include <vulkan/vulkan.h>
 #include "reflect_custom_types.h"
 #include "soa.h"
+#include <cassert>
 
 using namespace irr;
 using namespace core;
@@ -187,9 +188,9 @@ void Vulkan_App::cleanup()
 	{
 		reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
 
-		if (vk->my_status == VK_MODULE_NOT_RAN)
+		if (vk->forward_pass_complete == false)
 		{
-			vk->log() << tD->name << " did not run\n";
+			vk->log() << tD->name << " forward pass did not run\n";
 		}
 	}
 	bool UnusedResources = false;
@@ -275,9 +276,10 @@ bool Vulkan_Module::ready_backward()
 			m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
-			if (in->ready == false)
+			assert(in->src_output != nullptr && "ready_backward: input not connected");
+			if (in->src_output->ready == false)
 			{
-				//TODO: log
+				cout << "[not ready bwd] " << tD->name << " — input '" << m.name << "' not ready\n";
 				return false;
 			}
 		}
@@ -297,111 +299,15 @@ bool Vulkan_Module::ready_forward()
 			(m.flags & REFLECT_VKMOD_COMPONENT_FEAT))
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
-			if (in->ready == false)
+			assert(in->src_output != nullptr && "ready_forward: input not connected");
+			if (in->src_output->ready == false)
 			{
-				//TODO: log
+				cout << "[not ready] " << tD->name << " — input '" << m.name << "' not ready\n";
 				return false;
 			}
 		}
 	}
 	return true;
-}
-
-bool Vulkan_Module::signaled()
-{
-	if (my_status != VK_MODULE_NOT_RAN)
-		return false;
-
-	if(ready_forward())
-	{
-		reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
-
-		my_status = VK_MODULE_RAN;
-
-		log() << tD->name << ": running \n";
-
-		for (reflect::Member& m : tD->members)
-		{
-			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-
-			if (m_tD->inherited_type == &reflect::input_type::Reflection)
-			{
-				reflect::input_type* in = (reflect::input_type*)m.get(this);
-
-			}
-			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
-			{
-				reflect::output_type* out = (reflect::output_type*)m.get(this);
-			
-			//	if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
-			//	{
-			//		out->make_buffer();
-			//	}
-			}
-			//else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
-			//{
-			//	reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
-//
-			//	p->make_buffer();
-			//}
-		}
-
-		//run();
-
-		for (reflect::Member& m : tD->members)
-		{
-			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-
-			if (m_tD->inherited_type == &reflect::input_type::Reflection)
-			{
-				reflect::input_type* in = (reflect::input_type*)m.get(this);
-
-				//if(in->ready)
-				//	in->src_output->consume(in);
-			}
-			else if (m_tD->inherited_type == &reflect::output_type::Reflection)
-			{
-				reflect::output_type* out = (reflect::output_type*)m.get(this);
-				if (out->ready)
-				{
-					out->signal();
-				}
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-void Vulkan_Module::run_and_push()
-{
-	if (my_status != VK_MODULE_NOT_RAN)
-		return;
-
-	if (ready_forward())
-	{
-		reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
-
-		my_status = VK_MODULE_RAN;
-
-		log() << tD->name << ": running \n";
-
-		//run();
-
-		for (reflect::Member& m : tD->members)
-		{
-			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-
-			if (m_tD->inherited_type == &reflect::output_type::Reflection)
-			{
-				reflect::output_type* out = (reflect::output_type*)m.get(this);
-				if (out->ready)
-				{
-					out->push();
-				}
-			}
-		}
-	}
 }
 
 void Vulkan_Module::set_ptrs()
@@ -630,34 +536,6 @@ void Vulkan_App::createDescriptorPool() {
 	m_DescriptorPool = new MyDescriptorPool(m_device, 6, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, poolSizes);
 }
 
-
-void Vulkan_App::status()
-{
-	for (Vulkan_Module* vk : all_modules)
-	{
-		if (vk->my_status == VK_MODULE_NOT_RAN)
-		{
-			vk->log() << vk->GetDynamicReflection()->name << " did not run\n";
-
-			reflect::TypeDescriptor_Struct* tD = vk->GetDynamicReflection();
-
-			for (reflect::Member& m : tD->members)
-			{
-				reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-
-				if (m_tD->inherited_type == &reflect::input_type::Reflection)
-				{
-					reflect::input_type* in = (reflect::input_type*)m.get(vk);
-					if (!in->ready)
-					{
-						vk->log() << "  " << m.name << " is not ready\n";
-					}
-				}
-			}
-		}
-	}
-}
-
 void Vulkan_App::pre_run_check()
 {
 	reflect::TypeDescriptor* input_tD = reflect::TypeResolver<reflect::input_type>::get();
@@ -703,29 +581,6 @@ void Vulkan_App::pre_run_check()
 	cout << "GPU RAM size: " << m_device->getDeviceRAMSize() << "Mb \n";
 	cout << "Usage: " << f32(total_mem / (1024 * 1024)) / f32(m_device->getDeviceRAMSize()) << "\n\n";
 
-}
-
-void Vulkan_App::run_workflow()
-{
-	
-
-	//geo_module->run_and_push();
-
-	bool still_running = true;
-	while (still_running)
-	{
-		still_running = false;
-		for (Vulkan_Module* vk : all_modules)
-		{
-			if (vk->enabled && vk->is_submodule == false && vk->my_status == VK_MODULE_NOT_RAN)
-			{
-				if(vk->signaled() == true)
-					still_running = true;
-			}
-		}
-	}
-
-	
 }
 
 void vkImageSubresource::destroy(VkDevice device)

@@ -169,6 +169,7 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 		{
 			assert(mod.X->ready_forward() && "Module not ready...");
 			mod.X->forward();
+			mod.X->forward_pass_complete = true;
 		}
 	}
 	/*

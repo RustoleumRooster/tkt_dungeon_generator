@@ -52,10 +52,13 @@ void Workblock_Module::initialize(Vulkan_App* vulkan)
 
 void Workblock_Module::forward()
 {
+	log() << GetDynamicReflection()->name << " running:\n";
+
 	for (Vulkan_Module* mod : modules)
 	{
 		assert(mod->ready_forward() && "Module not ready...");
 		mod->forward();
+		mod->forward_pass_complete = true;
 	}
 
 	output_tensor.ready = true;

@@ -67,7 +67,7 @@ void Sigmoid_Module::forward()
 	// binding: input_tensor(0) — in-place operation
 	fwd_pass.bindings.resize(2);
 	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	fwd_pass.bindings[1] = output_tensor.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = output_tensor.X->getDescriptorSetLayout(1);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
@@ -84,6 +84,7 @@ void Sigmoid_Module::forward()
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
 		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, output_tensor.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 

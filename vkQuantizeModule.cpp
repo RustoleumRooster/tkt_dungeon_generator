@@ -26,7 +26,7 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Quantize_Module)
 	ALIAS("Quantize Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_PARAM(codebook)
 REFLECT_VKMOD_END()

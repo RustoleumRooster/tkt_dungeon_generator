@@ -669,10 +669,11 @@ public:
 
 	u64 m_uid;
 	u32 memory_needed = 0;
-	int my_status = VK_MODULE_NOT_RAN;
 	bool enabled = true;
 	bool is_submodule = false;
 	u32 depth = 0;
+	bool forward_pass_complete = false;
+	bool backward_pass_complete = false;
 
 	static reflect::Vulkan_Reflection_Factory factory;
 
@@ -696,7 +697,6 @@ public:
 	
 	void status();
 	void pre_run_check();
-	void run_workflow();
 	void cleanup();
 
 	void createDescriptorPool();
