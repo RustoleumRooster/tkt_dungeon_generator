@@ -1,0 +1,101 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input_grad
+{
+	float input_grad[];
+};
+
+layout(std430, binding = 1) readonly buffer	X_Norm
+{
+	float xnorm_buffer[];
+};
+
+layout(std430, binding = 2) writeonly buffer int_sums_buffer
+{
+	float sums_buffer[];
+};
+
+/*
+layout(std430, binding = 2) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+*/
+
+layout(push_constant) uniform PushConstants 
+{
+	uint N;
+	uint C;
+	uint H;
+	uint W;
+	uint num_groups;
+} pc;
+
+
+//One WG per image per group (32)
+layout(local_size_x = 256) in;  // 256 threads per WG
+
+shared float sg_partials[8];
+shared float sg_partials_2[8];
+
+
+// Layout of the intermediate sums buffer is:
+// float sum_dy			= sums[(n * n_groups * 2) + (g * 2) + 0];
+// float sum_dy_xnorm	= sums[(n * n_groups * 2) + (g * 2) + 1];
+
+void main()
+{ 
+	uint id = gl_LocalInvocationID.x;
+
+	
+	uint HW = pc.H * pc.W;
+
+	uint n = gl_WorkGroupID.x / pc.num_groups;
+	uint g = gl_WorkGroupID.x % pc.num_groups;
+	uint c_per_group = pc.C / pc.num_groups;
+
+	float sum_dy_partial = 0.0;
+	float sum_dy_xnorm_partial = 0.0;
+
+	for(int i=0; i< c_per_group; i+=1)
+	{
+		uint c = (g * c_per_group) + i;
+		for(uint j=id; j<HW; j+=256)
+		{
+			sum_dy_partial += input_grad[ n * pc.C * HW + c * HW + j ];
+			sum_dy_xnorm_partial += input_grad[ n * pc.C * HW + c * HW + j ] *
+									xnorm_buffer[ n * pc.C * HW + c * HW + j ] ;
+		}
+	}
+
+	float s1 = subgroupAdd(sum_dy_partial);
+	float s2 = subgroupAdd(sum_dy_xnorm_partial);
+
+	if(subgroupElect())
+	{
+		sg_partials[gl_SubgroupID] = s1;
+		sg_partials_2[gl_SubgroupID] = s2;
+	}
+
+	barrier();
+
+	if(id == 0)
+	{
+		float tot = 0.0;
+
+		for(int i=0;i<8;i++)
+			tot += sg_partials[i];
+
+		sums_buffer[(n * pc.num_groups * 2) + (g * 2) + 0] = tot;
+
+		tot = 0.0;
+
+		for(int i=0;i<8;i++)
+			tot += sg_partials_2[i];
+
+		sums_buffer[(n * pc.num_groups * 2) + (g * 2) + 1] = tot;
+	}
+}

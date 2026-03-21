@@ -54,12 +54,18 @@ struct GroupNorm_Module : public Vulkan_Module
 		void cleanup(VkDevice);
 	};
 
-	Pass fwd_pass_A;  // groupnorm.spv  — computes mean/var
-	Pass fwd_pass_B;  // groupnorm2.spv — applies gamma/beta
+	Pass fwd_pass_A;  // groupnorm.spv       — computes mean/invstd
+	Pass fwd_pass_B;  // groupnorm2.spv      — applies gamma/beta, writes xnorm
+	Pass bwd_pass_1;  // groupnorm_grad_1.spv — dβ gradient
+	Pass bwd_pass_2;  // groupnorm_grad_2.spv — intermediate sums (sum_dy, sum_dy_xnorm)
+	Pass bwd_pass_4;  // groupnorm_grad_4.spv — dL/dx
 
 	void setDimensions();
 	void forward_A();
 	void forward_B();
+	void backward_1();
+	void backward_2();
+	void backward_4();
 	void backward();
 	virtual void run();
 
@@ -70,8 +76,11 @@ struct GroupNorm_Module : public Vulkan_Module
 	reflect::output<vkBufferResource>    invstd_buffer;
 	reflect::output<vkBufferResource>    output_tensor;
 	reflect::output<vkBufferResource>    xnorm_buffer;
-	reflect::output<vkBufferResource>    int_sums_buffer; //intermediate values for the backward pass
+	reflect::output<vkBufferResource>    int_sums_buffer;
 	reflect::parameter<vkBufferResource> parameters;
+	reflect::input<vkBufferResource>     grad_input;
+	reflect::output<vkBufferResource>    grad_output;
+	reflect::output<vkBufferResource>    param_grad;
 
 	REFLECT_VKMOD()
 };

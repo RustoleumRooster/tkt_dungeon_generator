@@ -10,20 +10,28 @@ layout(std430, binding = 0) readonly buffer Input_grad
 
 layout(std430, binding = 1) readonly buffer	X_Norm
 {
-	float xnorm_buffer[];
+	float xnorm[];
 };
 
-layout(std430, binding = 2) writeonly buffer int_sums_buffer
+layout(std430, binding = 2) readonly buffer	Inv_Std
 {
-	float sums_buffer[];
+	float inv_std[];
 };
 
-/*
-layout(std430, binding = 2) writeonly buffer resultsBuffer
+layout(std430, binding = 3) readonly buffer	Intermediate_Sums
 {
-	vec3 results[];
+	float int_sums[];
 };
-*/
+
+layout(std430, binding = 4) readonly buffer	Params
+{
+	float params[];
+};
+
+layout(std430, binding = 5) writeonly buffer Output_grad
+{
+	float output_grad[];
+};
 
 layout(push_constant) uniform PushConstants 
 {
@@ -34,68 +42,48 @@ layout(push_constant) uniform PushConstants
 	uint num_groups;
 } pc;
 
-
-//One WG per image per group (32)
-layout(local_size_x = 256) in;  // 256 threads per WG
-
-shared float sg_partials[8];
-shared float sg_partials_2[8];
-
+layout(local_size_x = 256) in;
 
 // Layout of the intermediate sums buffer is:
 // float sum_dy			= sums[(n * n_groups * 2) + (g * 2) + 0];
 // float sum_dy_xnorm	= sums[(n * n_groups * 2) + (g * 2) + 1];
+//
+// Layout of the parameter buffer is:
+// float gamma = parameters[c * 2 + 0];
+// float beta  = parameters[c * 2 + 1];
 
 void main()
 { 
-	uint id = gl_LocalInvocationID.x;
+	uint idx = gl_GlobalInvocationID.x;
 
-	
-	uint HW = pc.H * pc.W;
+	uint HW    = pc.H * pc.W;
+	uint CHW   = pc.C * HW;
 
-	uint n = gl_WorkGroupID.x / pc.num_groups;
-	uint g = gl_WorkGroupID.x % pc.num_groups;
-	uint c_per_group = pc.C / pc.num_groups;
+	if (idx >= pc.N * CHW)
+		return;
 
-	float sum_dy_partial = 0.0;
-	float sum_dy_xnorm_partial = 0.0;
+	uint c         = (idx % CHW) / HW;
+	uint g         = c / (pc.C / pc.num_groups);
 
-	for(int i=0; i< c_per_group; i+=1)
-	{
-		uint c = (g * c_per_group) + i;
-		for(uint j=id; j<HW; j+=256)
-		{
-			sum_dy_partial += input_grad[ n * pc.C * HW + c * HW + j ];
-			sum_dy_xnorm_partial += input_grad[ n * pc.C * HW + c * HW + j ] *
-									xnorm_buffer[ n * pc.C * HW + c * HW + j ] ;
-		}
-	}
+	uint n = idx / CHW;
+	uint j = idx % HW;
 
-	float s1 = subgroupAdd(sum_dy_partial);
-	float s2 = subgroupAdd(sum_dy_xnorm_partial);
+	uint N = (pc.C / pc.num_groups) * HW;
 
-	if(subgroupElect())
-	{
-		sg_partials[gl_SubgroupID] = s1;
-		sg_partials_2[gl_SubgroupID] = s2;
-	}
+	//intermediate values (depend on group g)
+	float invstd		= inv_std[ n * pc.num_groups + g ];
+	float sum_dy		= int_sums[ (n * pc.num_groups * 2) + (g * 2) + 0 ];
+	float sum_dy_xnorm	= int_sums[ (n * pc.num_groups * 2) + (g * 2) + 1 ];
 
-	barrier();
+	//parameters (depend on channel c)
+	float gamma			= params[c * 2 + 0];
+		
+	//x_norm and dldy (per element)
+	float x_norm		= xnorm[ n * pc.C * HW + c * HW + j ];
+	float dldy			= input_grad[n * pc.C * HW + c * HW + j];
 
-	if(id == 0)
-	{
-		float tot = 0.0;
+	float dldx			= (gamma * invstd / float(N)) * (float(N) * dldy - sum_dy - sum_dy_xnorm * x_norm);
 
-		for(int i=0;i<8;i++)
-			tot += sg_partials[i];
+	output_grad[n * pc.C * HW + c * HW + j] = dldx;
 
-		sums_buffer[(n * pc.num_groups * 2) + (g * 2) + 0] = tot;
-
-		tot = 0.0;
-
-		for(int i=0;i<8;i++)
-			tot += sg_partials_2[i];
-
-		sums_buffer[(n * pc.num_groups * 2) + (g * 2) + 1] = tot;
-	}
 }
