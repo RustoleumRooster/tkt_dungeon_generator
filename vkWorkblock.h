@@ -15,7 +15,6 @@ struct Activation_Module;
 struct GroupNorm_Module;
 struct Silu_Module;
 struct Skip_Module;
-struct Add_Module;
 struct NNUp_Module;
 struct Sigmoid_Module;
 
@@ -104,7 +103,6 @@ struct ResBlock_Module : public Workblock_Module
 	Convolution_Module*   conv1 = NULL;
 	Silu_Module*          silu  = NULL;
 	Convolution_Module*   conv2 = NULL;
-	Add_Module*           add   = NULL;
 
 	REFLECT_VKMOD()
 };

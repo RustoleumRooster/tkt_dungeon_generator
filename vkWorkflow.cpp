@@ -5,6 +5,8 @@
 #include "vkWorkblock.h"
 #include "vkBCELossModule.h"
 #include <vulkan/vulkan.h>
+#include "vkGroupNormModule.h"
+#include "vkSkipModule.h"
 #include <cassert>
 
 Vulkan_Workflow::~Vulkan_Workflow()
@@ -113,6 +115,12 @@ void Vulkan_Workflow::make_default_workflow()
 
 	reflect::connect(&quantize->output_tensor, &res_block->input_tensor);
 	reflect::connect(&quantize->output_tensor, &res_block->head_input());
+
+	reflect::output<vkBufferResource>* in = dynamic_cast<reflect::output<vkBufferResource>*>(res_block->group_norm->input_tensor.src_output);
+
+	if (in)
+		reflect::connect(in, &res_block->skip->input_b);
+
 
 	reflect::connect(&res_block->tail_output(), &up_block->input_tensor);
 	reflect::connect(&res_block->tail_output(), &up_block->head_input());
@@ -320,6 +328,34 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				p->Y = vulkan->create_buffer_slice(param_grad_buffer, param_t, sz);
 
 				param_t += sz;
+			}
+		}
+	}
+
+	// Pass 3: wire input.X = src_output.X for every input member
+	for (VkMod_Reference& ref : Modules)
+	{
+		Vulkan_Module* mod = ref.X;
+		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
+		if (!td) continue;
+
+		for (reflect::Member& m : td->members)
+		{
+			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+			if (!m_tD) continue;
+
+			if (m_tD->inherited_type == &reflect::input_type::Reflection &&
+				!(m.flags & REFLECT_VKMOD_COMPONENT_GRAD))
+			{
+				reflect::input<vkBufferResource>* in = (reflect::input<vkBufferResource>*)m.get(mod);
+
+				assert(in->src_output != nullptr && "plan_memory pass 3: input not connected");
+
+				reflect::output<vkBufferResource>* src = (reflect::output<vkBufferResource>*)in->src_output;
+
+				assert(src->X != nullptr && "plan_memory pass 3: src_output has no buffer");
+
+				in->X = src->X;
 			}
 		}
 	}

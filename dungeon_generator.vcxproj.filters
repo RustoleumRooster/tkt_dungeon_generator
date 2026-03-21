@@ -201,6 +201,9 @@
     <ClCompile Include="vkBCELossModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkSkipModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">

@@ -185,6 +185,7 @@
     <ClCompile Include="vkQuantizeModule.cpp" />
     <ClCompile Include="vkSigmoidModule.cpp" />
     <ClCompile Include="vkSiluModule.cpp" />
+    <ClCompile Include="vkSkipModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
     <ClCompile Include="vkWorkblock.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />

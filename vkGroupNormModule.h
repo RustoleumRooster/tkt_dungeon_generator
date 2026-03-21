@@ -80,7 +80,6 @@ struct GroupNorm_Module : public Vulkan_Module
 	reflect::parameter<vkBufferResource> parameters;
 	reflect::input<vkBufferResource>     grad_input;
 	reflect::output<vkBufferResource>    grad_output;
-	reflect::output<vkBufferResource>    param_grad;
 
 	REFLECT_VKMOD()
 };

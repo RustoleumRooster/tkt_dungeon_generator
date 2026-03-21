@@ -22,9 +22,8 @@ REFLECT_VKMOD_BEGIN(GroupNorm_Module)
 	REFLECT_VKMOD_PARAM(parameters)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_FEAT(xnorm_buffer)
-	REFLECT_VKMOD_MEMBER(grad_input)
+	REFLECT_VKMOD_GRAD(grad_input)
 	REFLECT_VKMOD_GRAD(grad_output)
-	REFLECT_VKMOD_GRAD(param_grad)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -65,7 +64,6 @@ void GroupNorm_Module::setDimensions()
 	output_tensor.dimensions   = input_dimensions;
 	xnorm_buffer.dimensions    = input_dimensions;
 	grad_output.dimensions     = input_dimensions;
-	param_grad.dimensions      = { 1, 1, 2, input_dimensions.C };
 
 	pushconstants.n = input_dimensions.B;
 	pushconstants.c = input_dimensions.C;
@@ -204,7 +202,7 @@ void GroupNorm_Module::backward_1()
 	bwd_pass_1.bindings.resize(3);
 	bwd_pass_1.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
 	bwd_pass_1.bindings[1] = xnorm_buffer.X->getDescriptorSetLayout(1);
-	bwd_pass_1.bindings[2] = param_grad.X->getDescriptorSetLayout(2);
+	bwd_pass_1.bindings[2] = parameters.Y->getDescriptorSetLayout(2);
 	bwd_pass_1.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_1.bindings);
 
 	VkPushConstantRange push_constant;
@@ -214,14 +212,14 @@ void GroupNorm_Module::backward_1()
 
 	bwd_pass_1.createPipeline(m_device, "shaders/groupnorm_grad_1.spv", push_constant);
 
-	param_grad.ready = true;
+	//param_grad.ready = true;
 
 	{
 		MyDescriptorWriter writer(*bwd_pass_1.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass_1.descriptorSets.resize(1);
 		writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, xnorm_buffer.X->getDescriptorBufferInfo());
-		writer.writeBuffer(2, param_grad.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, parameters.Y->getDescriptorBufferInfo());
 		writer.build(bwd_pass_1.descriptorSets[0]);
 	}
 

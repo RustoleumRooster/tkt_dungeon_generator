@@ -1,6 +1,6 @@
 #include <irrlicht.h>
 #include "vkModules.h"
-#include "vkNNUpModule.h"
+#include "vkSkipModule.h"
 #include <vulkan/vulkan.h>
 #include "reflect_custom_types.h"
 
@@ -9,23 +9,27 @@ using namespace core;
 using namespace std;
 
 //============================================================
-// Nearest-Neighbor 2x Upscale Module
+// Skip (Add) Module
 //
 
-REFLECT_VKMOD_BEGIN(NNUp_Module)
-	ALIAS("NNUp")
+REFLECT_VKMOD_BEGIN(Skip_Module)
+	ALIAS("Skip Module")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_FEAT(input)
+//Forward Pass
+	REFLECT_VKMOD_FEAT(input_a)
+	REFLECT_VKMOD_FEAT(input_b)
 	REFLECT_VKMOD_FEAT(output)
+//Backward Pass
 	REFLECT_VKMOD_GRAD(grad_input)
-	REFLECT_VKMOD_GRAD(grad_output)
+	REFLECT_VKMOD_GRAD(grad_output_a)
+	REFLECT_VKMOD_GRAD(grad_output_b)
 REFLECT_VKMOD_END()
 
 //============================================================
 // Pass helpers
 //
 
-void NNUp_Module::Pass::createPipeline(MyDevice* device, const char* spv,
+void Skip_Module::Pass::createPipeline(MyDevice* device, const char* spv,
                                        VkPushConstantRange pushconstant)
 {
 	VkPipelineLayoutCreateInfo info{};
@@ -39,7 +43,7 @@ void NNUp_Module::Pass::createPipeline(MyDevice* device, const char* spv,
 	pipeline = new ComputePipeline(device, spv, pipelineLayout);
 }
 
-void NNUp_Module::Pass::cleanup(VkDevice device)
+void Skip_Module::Pass::cleanup(VkDevice device)
 {
 	descriptorSetLayout->cleanup();
 	pipeline->cleanup();
@@ -50,35 +54,23 @@ void NNUp_Module::Pass::cleanup(VkDevice device)
 // Module
 //
 
-void NNUp_Module::setDimensions()
+void Skip_Module::setDimensions()
 {
-	output.dimensions = {
-		input_dimensions.B,
-		input_dimensions.C,
-		input_dimensions.H * 2,
-		input_dimensions.W * 2
-	};
+	output.dimensions       = input_dimensions;
+	grad_output_a.dimensions = input_dimensions;
+	grad_output_b.dimensions = input_dimensions;
 
-	grad_output.dimensions = input_dimensions;
-
-	pushconstants.C          = input_dimensions.C;
-	pushconstants.H          = output.dimensions.H;
-	pushconstants.W          = output.dimensions.W;
-	pushconstants.n_elements = output.dimensions.B * output.dimensions.C *
-	                           output.dimensions.H * output.dimensions.W;
+	pushconstants.n_elements = input_dimensions.B * input_dimensions.C *
+	                           input_dimensions.H * input_dimensions.W;
 }
 
-void NNUp_Module::run()
+void Skip_Module::forward()
 {
-	forward();
-}
-
-void NNUp_Module::forward()
-{
-	// bindings: input(0), output(1)
-	fwd_pass.bindings.resize(2);
-	fwd_pass.bindings[0] = input.X->getDescriptorSetLayout(0);
-	fwd_pass.bindings[1] = output.X->getDescriptorSetLayout(1);
+	// bindings: input_a(0), input_b(1), output(2)
+	fwd_pass.bindings.resize(3);
+	fwd_pass.bindings[0] = input_a.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = input_b.X->getDescriptorSetLayout(1);
+	fwd_pass.bindings[2] = output.X->getDescriptorSetLayout(2);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
@@ -86,15 +78,16 @@ void NNUp_Module::forward()
 	push_constant.size       = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	fwd_pass.createPipeline(m_device, "shaders/NN_up.spv", push_constant);
+	fwd_pass.createPipeline(m_device, "shaders/skip.spv", push_constant);
 
 	output.ready = true;
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
-		writer.writeBuffer(0, input.X->getDescriptorBufferInfo());
-		writer.writeBuffer(1, output.X->getDescriptorBufferInfo());
+		writer.writeBuffer(0, input_a.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, input_b.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, output.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
@@ -108,7 +101,7 @@ void NNUp_Module::forward()
 
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
 
-	log() << "NNUp forward: " << n_WorkGroups_x << " workgroups\n";
+	log() << "Skip forward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
@@ -124,13 +117,14 @@ void NNUp_Module::forward()
 	fwd_pass.cleanup(m_device->getDevice());
 }
 
-void NNUp_Module::backward()
+void Skip_Module::backward()
 {
-	// bindings: grad_input(0) [dL/d_output, large], grad_output(1) [dL/d_input, small]
-	// Each input element accumulates grads from its 4 replicated output positions.
-	bwd_pass.bindings.resize(2);
+	// Add backward: dL/dA = dL/dB = dL/dOutput — copy grad_input to both outputs
+	// bindings: grad_input(0), grad_output_a(1), grad_output_b(2)
+	bwd_pass.bindings.resize(3);
 	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = grad_output.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[1] = grad_output_a.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = grad_output_b.X->getDescriptorSetLayout(2);
 	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
@@ -138,15 +132,17 @@ void NNUp_Module::backward()
 	push_constant.size       = sizeof(pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	bwd_pass.createPipeline(m_device, "shaders/NN_up_grad.spv", push_constant);
+	bwd_pass.createPipeline(m_device, "shaders/skip_grad.spv", push_constant);
 
-	grad_output.ready = true;
+	grad_output_a.ready = true;
+	grad_output_b.ready = true;
 
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
 		writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
-		writer.writeBuffer(1, grad_output.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, grad_output_a.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, grad_output_b.X->getDescriptorBufferInfo());
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
@@ -158,19 +154,12 @@ void NNUp_Module::backward()
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	// n_elements for backward = input element count (small tensor)
-	uint32_t n_elements_in  = input_dimensions.B * input_dimensions.C *
-	                          input_dimensions.H * input_dimensions.W;
-	uint32_t n_WorkGroups_x = (n_elements_in + 255) / 256;
+	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
 
-	// H/W in push constants are the OUTPUT (large) dimensions — shader divides by 2 internally
-	pushconstant_struct bwd_pc = pushconstants;
-	bwd_pc.n_elements = n_elements_in;
-
-	log() << "NNUp backward: " << n_WorkGroups_x << " workgroups\n";
+	log() << "Skip backward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
-		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &bwd_pc);
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
 	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 

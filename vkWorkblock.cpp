@@ -5,7 +5,7 @@
 #include "vkUtilModules.h"
 #include "vkGroupNormModule.h"
 #include "vkSiluModule.h"
-#include "vkAddModule.h"
+#include "vkSkipModule.h"
 #include "vkNNUpModule.h"
 #include "vkSigmoidModule.h"
 #include "vkBCELossModule.h"
@@ -128,11 +128,11 @@ REFLECT_VKMOD_BEGIN(FinalBlock_Module)
 	ALIAS("Final Block")
 	INHERIT_FROM(Workblock_Module)
 	//Forward Pass
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(output_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 	//Backward Pass
-	REFLECT_VKMOD_MEMBER(input_grad)
-	REFLECT_VKMOD_MEMBER(output_grad)
+	REFLECT_VKMOD_GRAD(input_grad)
+	REFLECT_VKMOD_GRAD(output_grad)
 REFLECT_VKMOD_END()
 
 void FinalBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
@@ -185,8 +185,8 @@ reflect::output<vkBufferResource>& FinalBlock_Module::tail_output()
 REFLECT_VKMOD_BEGIN(UpscaleBlock_Module)
 	ALIAS("Upscale Block")
 	INHERIT_FROM(Workblock_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(output_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 REFLECT_VKMOD_END()
 
 void UpscaleBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
@@ -250,8 +250,8 @@ reflect::output<vkBufferResource>& UpscaleBlock_Module::tail_output()
 REFLECT_VKMOD_BEGIN(ResBlock_Module)
 	ALIAS("Res Block")
 	INHERIT_FROM(Workblock_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(output_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 REFLECT_VKMOD_END()
 
 void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
@@ -277,15 +277,15 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	conv2->input_dimensions  = { N,C,H,W };
 	conv2->output_dimensions = { N,C,H,W };
 
-	add = new Add_Module();
-	add->input_dimensions = { N,C,H,W };
+	skip = new Skip_Module();
+	skip->input_dimensions = { N,C,H,W };
 
 	//modules.push_back(skip);
 	modules.push_back(group_norm);
 	modules.push_back(conv1);
 	modules.push_back(silu);
 	modules.push_back(conv2);
-	modules.push_back(add);
+	modules.push_back(skip);
 
 	// skip branch
 	//reflect::connect(&skip->output_tensor, &group_norm->input_tensor);
@@ -296,12 +296,7 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	reflect::connect(&silu->output_tensor,       &conv2->input_tensor);
 
 	// add skip to output
-	reflect::connect(&conv2->output_tensor, &add->input_a);
-
-	reflect::output<vkBufferResource>* in = dynamic_cast<reflect::output<vkBufferResource>*>(group_norm->input_tensor.src_output);
-	
-	if(in)
-		reflect::connect(in,  &add->input_b);
+	reflect::connect(&conv2->output_tensor, &skip->input_a);
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -318,5 +313,5 @@ reflect::input<vkBufferResource>& ResBlock_Module::head_input()
 
 reflect::output<vkBufferResource>& ResBlock_Module::tail_output()
 {
-	return add->output;
+	return skip->output;
 }
