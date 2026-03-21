@@ -346,7 +346,7 @@ bool Vulkan_Module::signaled()
 			//}
 		}
 
-		run();
+		//run();
 
 		for (reflect::Member& m : tD->members)
 		{
@@ -386,7 +386,7 @@ void Vulkan_Module::run_and_push()
 
 		log() << tD->name << ": running \n";
 
-		run();
+		//run();
 
 		for (reflect::Member& m : tD->members)
 		{

@@ -64,11 +64,6 @@ void BCE_Loss_Module::setDimensions()
 	                             input_dimensions.H, input_dimensions.W };
 }
 
-void BCE_Loss_Module::run()
-{
-	forward();
-}
-
 void BCE_Loss_Module::forward()
 {
 	// descriptor set layout: predictions(0), ground_truth(1), loss(2)

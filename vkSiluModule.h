@@ -58,7 +58,6 @@ struct Silu_Module : public Vulkan_Module
 	void setDimensions();
 	void forward();
 	void backward();
-	virtual void run();
 
 	reflect::input<vkBufferResource>  input_tensor;
 	reflect::output<vkBufferResource> output_tensor;

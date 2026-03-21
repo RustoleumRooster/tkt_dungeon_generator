@@ -646,7 +646,7 @@ public:
 	void createComputePipeline(const char* shader_path, VkPushConstantRange);
 
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) {}
-	virtual void run() {}
+	//virtual void run() {}
 	virtual void forward() {}
 	virtual void backward() {}
 	//bool load_resources();

@@ -26,98 +26,96 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Quantize_Module)
 	ALIAS("Quantize Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_MEMBER(input_tensor)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_PARAM(codebook)
 REFLECT_VKMOD_END()
 
-void Quantize_Module::run()
+//============================================================
+// Pass helpers
+//
+
+void Quantize_Module::Pass::createPipeline(MyDevice* device, const char* spv,
+                                           VkPushConstantRange pushconstant)
 {
-	createDescriptorSetLayout();
+	VkPipelineLayoutCreateInfo info{};
+	info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	info.setLayoutCount         = 1;
+	info.pSetLayouts            = &descriptorSetLayout->getDescriptorSetLayout();
+	info.pPushConstantRanges    = &pushconstant;
+	info.pushConstantRangeCount = 1;
 
-	VkPushConstantRange push_constant;
-	push_constant.offset = 0;
-	push_constant.size = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	createComputePipeline("shaders/quantize.spv", push_constant);
-
-	output_tensor.ready = true;
-
-	execute();
-	cleanup();
+	vkCreatePipelineLayout(device->getDevice(), &info, nullptr, &pipelineLayout);
+	pipeline = new ComputePipeline(device, spv, pipelineLayout);
 }
+
+void Quantize_Module::Pass::cleanup(VkDevice device)
+{
+	descriptorSetLayout->cleanup();
+	pipeline->cleanup();
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
+//============================================================
+// Module
+//
 
 void Quantize_Module::setDimensions()
 {
-	codebook.dimensions = codebook_size;
-	output_tensor.dimensions = { this->input_dimensions.B,this->input_dimensions.C,this->input_dimensions.H,this->input_dimensions.W };
-	pushconstants.n_vectors = this->codebook_size.H;
+	codebook.dimensions      = codebook_size;
+	output_tensor.dimensions = input_dimensions;
+	pushconstants.n_vectors  = codebook_size.H;
 }
 
-void Quantize_Module::createDescriptorSets()
+void Quantize_Module::forward()
 {
-	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
+	// bindings: input_tensor(0), codebook(1), output_tensor(2)
+	fwd_pass.bindings.resize(3);
+	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = codebook.X->getDescriptorSetLayout(1);
+	fwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
+	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	descriptorSets.resize(1);
+	VkPushConstantRange push_constant;
+	push_constant.offset     = 0;
+	push_constant.size       = sizeof(pushconstant_struct);
+	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
-	writer.writeBuffer(1, codebook.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
+	fwd_pass.createPipeline(m_device, "shaders/quantize.spv", push_constant);
 
-	writer.build(descriptorSets[0]);
-}
+	output_tensor.ready = true;
 
-void Quantize_Module::createDescriptorSetLayout()
-{
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	bindings.resize(3);
-	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	bindings[1] = codebook.X->getDescriptorSetLayout(1);
-	bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
-
-	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
-}
-
-void Quantize_Module::execute()
-{
-	Q_START_TIMER()
-	createDescriptorSets();
+	{
+		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
+		fwd_pass.descriptorSets.resize(1);
+		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, codebook.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
+		writer.build(fwd_pass.descriptorSets[0]);
+	}
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		pipeline->getPipeline());
+		fwd_pass.pipeline->getPipeline());
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
-		&descriptorSets[0], 0, 0);
-
-	uint32_t n_threads = input_dimensions.B * input_dimensions.C * input_dimensions.H * input_dimensions.W;
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
 	uint32_t n_WorkGroups_x = input_dimensions.B * input_dimensions.H * input_dimensions.W;
-	uint32_t n_WorkGroups_y = 1;
-	uint32_t n_WorkGroups_z = 1;
 
-	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	log() << "Quantize forward: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
-	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	Q_PRINT_TIMER(Quantize)
-}
-
-void Quantize_Module::cleanup()
-{
-	descriptorSetLayout->cleanup();
-
-	pipeline->cleanup();
-
-	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
+	fwd_pass.cleanup(m_device->getDevice());
 }

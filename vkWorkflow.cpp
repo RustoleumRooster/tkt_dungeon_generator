@@ -165,8 +165,11 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 
 	for (VkMod_Reference& mod : Modules)
 	{
-		if(mod.X->is_submodule == false)
-			mod.X->signaled();
+		if (mod.X->is_submodule == false)
+		{
+			assert(mod.X->ready_forward() && "Module not ready...");
+			mod.X->forward();
+		}
 	}
 	/*
 	if (backward_pass_head)

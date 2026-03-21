@@ -9,6 +9,7 @@
 #include "vkNNUpModule.h"
 #include "vkSigmoidModule.h"
 #include "vkBCELossModule.h"
+#include <cassert>
 
 REFLECT_VKMOD_BEGIN(Workblock_Module)
 	ALIAS("Workblock")		
@@ -49,10 +50,13 @@ void Workblock_Module::initialize(Vulkan_App* vulkan)
 		mod->initialize(vulkan);
 }
 
-void Workblock_Module::run()
+void Workblock_Module::forward()
 {
 	for (Vulkan_Module* mod : modules)
-		mod->signaled();
+	{
+		assert(mod->ready_forward() && "Module not ready...");
+		mod->forward();
+	}
 
 	output_tensor.ready = true;
 }

@@ -31,7 +31,7 @@ struct Workblock_Module : public Vulkan_Module
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) override {}
 	virtual void initialize(Vulkan_App* vulkan) override;
 	virtual void setDimensions() override;
-	virtual void run() override;
+	virtual void forward() override;
 
 	virtual reflect::input<vkBufferResource>& head_input() { return input_tensor; }
 	virtual reflect::output<vkBufferResource>& tail_output() { return output_tensor; }

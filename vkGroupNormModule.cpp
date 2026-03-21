@@ -71,7 +71,7 @@ void GroupNorm_Module::setDimensions()
 	pushconstants.w = input_dimensions.W;
 }
 
-void GroupNorm_Module::run()
+void GroupNorm_Module::forward()
 {
 	forward_A();
 	forward_B();

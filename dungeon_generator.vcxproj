@@ -173,7 +173,6 @@
     <ClCompile Include="Refl_Primitives.cpp" />
     <ClCompile Include="scrollbar2.cpp" />
     <ClCompile Include="tree_struct.cpp" />
-    <ClCompile Include="vkAddModule.cpp" />
     <ClCompile Include="vkBCELossModule.cpp" />
     <ClCompile Include="vkBufferObject.cpp" />
     <ClCompile Include="vkComputePipeline.cpp" />
@@ -206,7 +205,6 @@
     <ClInclude Include="tkt_reflection_factory.h" />
     <ClInclude Include="tkt_set.h" />
     <ClInclude Include="tree_struct.h" />
-    <ClInclude Include="vkAddModule.h" />
     <ClInclude Include="vkBCELossModule.h" />
     <ClInclude Include="vkBufferObject.h" />
     <ClInclude Include="vkComputePipeline.h" />

@@ -38,7 +38,7 @@ REFLECT_VKMOD_BEGIN(Create_Tensor_Module)
 	REFLECT_VKMOD_MEMBER(output_tensor)
 REFLECT_VKMOD_END()
 
-void Create_Tensor_Module::run()
+void Create_Tensor_Module::forward()
 {
 	//if (!load_resources())
 	//	return;
@@ -118,11 +118,6 @@ void Convolution_Module::setDimensions()
 	pushconstants.img_size_in  = input_dimensions.H;
 	pushconstants.img_size_out = output_dimensions.H;
 	pushconstants.n            = input_dimensions.B;
-}
-
-void Convolution_Module::run()
-{
-	forward();
 }
 
 void Convolution_Module::forward()
@@ -313,120 +308,104 @@ void Convolution_Module::backward_B()
 REFLECT_VKMOD_BEGIN(Normalization_Module)
 	ALIAS("Normalization Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_FEAT(input_tensor)
-	REFLECT_VKMOD_MEMBER(mean_buffer)
-	REFLECT_VKMOD_MEMBER(var_buffer)
+	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_FEAT(mean_buffer)
+	REFLECT_VKMOD_FEAT(var_buffer)
 REFLECT_VKMOD_END()
 
-void Normalization_Module::run()
+//============================================================
+// Pass helpers
+//
+
+void Normalization_Module::Pass::createPipeline(MyDevice* device, const char* spv,
+                                                VkPushConstantRange pushconstant)
 {
-	//createBuffer();
-	createDescriptorSetLayout();
+	VkPipelineLayoutCreateInfo info{};
+	info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	info.setLayoutCount         = 1;
+	info.pSetLayouts            = &descriptorSetLayout->getDescriptorSetLayout();
+	info.pPushConstantRanges    = &pushconstant;
+	info.pushConstantRangeCount = 1;
 
-	VkPushConstantRange push_constant;
-	push_constant.offset = 0;
-	push_constant.size = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	createComputePipeline("shaders/mean_var.spv", push_constant);
-
-	execute();
-	//read_results();
-	cleanup();
-
-	mean_buffer.ready = true;
-	var_buffer.ready = true;
+	vkCreatePipelineLayout(device->getDevice(), &info, nullptr, &pipelineLayout);
+	pipeline = new ComputePipeline(device, spv, pipelineLayout);
 }
+
+void Normalization_Module::Pass::cleanup(VkDevice device)
+{
+	descriptorSetLayout->cleanup();
+	pipeline->cleanup();
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
+//============================================================
+// Module
+//
 
 void Normalization_Module::setDimensions()
 {
-	mean_buffer.dimensions = { 1,1,1,this->input_dimensions.C };
-	var_buffer.dimensions = { 1,1,1,this->input_dimensions.C };
+	pushconstants.n = input_dimensions.B;
+	pushconstants.c = input_dimensions.C;
+	pushconstants.h = input_dimensions.H;
+	pushconstants.w = input_dimensions.W;
+
+	mean_buffer.dimensions = { 1,1,1, input_dimensions.C };
+	var_buffer.dimensions  = { 1,1,1, input_dimensions.C };
 }
 
-void Normalization_Module::createBuffer()
+void Normalization_Module::forward()
 {
-	int n_indices = 128;
-	VkDeviceSize bufferSize = sizeof(float) * n_indices;
+	// bindings: input_tensor(0), mean_buffer(1), var_buffer(2)
+	// one workgroup per channel — computes per-channel mean and variance
+	fwd_pass.bindings.resize(3);
+	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
+	fwd_pass.bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
+	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	mean_buffer.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	VkPushConstantRange push_constant;
+	push_constant.offset     = 0;
+	push_constant.size       = sizeof(pushconstant_struct);
+	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-	mean_buffer.X->range = bufferSize;
+	fwd_pass.createPipeline(m_device, "shaders/mean_var.spv", push_constant);
 
-	var_buffer.X = vulkan->create_buffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	mean_buffer.ready = true;
+	var_buffer.ready  = true;
 
-	var_buffer.X->range = bufferSize;
-}
-
-void Normalization_Module::createDescriptorSets()
-{
-	MyDescriptorWriter writer(*descriptorSetLayout, *m_DescriptorPool);
-
-	descriptorSets.resize(1);
-
-	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
-	writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
-
-	writer.build(descriptorSets[0]);
-}
-
-void Normalization_Module::createDescriptorSetLayout()
-{
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	bindings.resize(3);
-	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
-	bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
-
-	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
-}
-
-void Normalization_Module::execute()
-{
-	START_TIMER()
-	createDescriptorSets();
+	{
+		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
+		fwd_pass.descriptorSets.resize(1);
+		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, mean_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, var_buffer.X->getDescriptorBufferInfo());
+		writer.build(fwd_pass.descriptorSets[0]);
+	}
 
 	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		pipeline->getPipeline());
+		fwd_pass.pipeline->getPipeline());
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1,
-		&descriptorSets[0], 0, 0);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	uint32_t work_length = 1;
-	uint32_t work_height = 1;
+	uint32_t n_WorkGroups_x = pushconstants.c; // one workgroup per channel
 
-	uint32_t n_WorkGroups_x = 128; //one per channel
-	uint32_t n_WorkGroups_y = 1;
-	uint32_t n_WorkGroups_z = 1;
+	log() << "Normalization forward: " << n_WorkGroups_x << " workgroups\n";
 
-	log() << "(" << n_WorkGroups_x << " / " << n_WorkGroups_y << ")\n";
+	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
-
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, 1);
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
-	m_DescriptorPool->freeDescriptorsSets(descriptorSets);
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 
 	vkDeviceWaitIdle(m_device->getDevice());
-	PRINT_TIMER(Calc Mean and Var)
-}
 
-
-void Normalization_Module::cleanup()
-{
-	descriptorSetLayout->cleanup();
-
-	pipeline->cleanup();
-
-	vkDestroyPipelineLayout(m_device->getDevice(), pipelineLayout, nullptr);
+	fwd_pass.cleanup(m_device->getDevice());
 }
 
 
@@ -482,11 +461,6 @@ void Activation_Module::setDimensions()
 
 	parameters.dimensions    = { 1,1,2,input_dimensions.C }; // gamma + beta per channel
 	output_tensor.dimensions = input_dimensions;
-}
-
-void Activation_Module::run()
-{
-	forward();
 }
 
 void Activation_Module::forward()

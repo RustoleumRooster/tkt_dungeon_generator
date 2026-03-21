@@ -48,7 +48,6 @@ struct BCE_Loss_Module : public Vulkan_Module
 	void setDimensions();
 	void forward();
 	void backward();  
-	virtual void run();
 
 	reflect::input<vkBufferResource>  predictions;
 	reflect::input<vkBufferResource>  ground_truth;

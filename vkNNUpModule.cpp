@@ -68,11 +68,6 @@ void NNUp_Module::setDimensions()
 	                           output.dimensions.H * output.dimensions.W;
 }
 
-void NNUp_Module::run()
-{
-	forward();
-}
-
 void NNUp_Module::forward()
 {
 	// bindings: input(0), output(1)

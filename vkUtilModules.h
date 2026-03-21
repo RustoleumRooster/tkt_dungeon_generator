@@ -31,7 +31,7 @@ public:
 	virtual void initialize(Vulkan_App* vulkan);
 
 	void setDimensions();
-	virtual void run();
+	virtual void forward();
 	void createImages(bool random_data = false);
 
 	reflect::output<vkBufferResource> output_tensor;
@@ -94,7 +94,6 @@ struct Convolution_Module : public Vulkan_Module
 	void backward();
 	void backward_A();
 	void backward_B();
-	virtual void run();
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;
@@ -116,36 +115,32 @@ struct Normalization_Module : public Vulkan_Module
 
 	struct pushconstant_struct
 	{
-		u32 k;
-		u32 s;
 		u32 n;
-		u32 c_in;
-		u32 c_out;
-		u32 img_size_in;
-		u32 img_size_out;
+		u32 c;
+		u32 h;
+		u32 w;
 	};
 
-	pushconstant_struct pushconstants
+	pushconstant_struct pushconstants{ 16, 128, 32, 32 };
+
+	struct Pass
 	{
-		4,//k
-		2,//s
-		16,//n
-		16,//c_in
-		16,//c_out
-		32,//h
-		32,//uw
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
 	};
+
+	Pass fwd_pass;
 
 	void setDimensions();
-	void createBuffer();
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
+	virtual void forward();
 
-	virtual void run();
-	void execute();
-	void cleanup();
-
-	reflect::input<vkBufferResource> input_tensor;
+	reflect::input<vkBufferResource>  input_tensor;
 	reflect::output<vkBufferResource> mean_buffer;
 	reflect::output<vkBufferResource> var_buffer;
 
@@ -188,7 +183,6 @@ struct Activation_Module : public Vulkan_Module
 
 	void setDimensions();
 	void forward();
-	virtual void run();
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;

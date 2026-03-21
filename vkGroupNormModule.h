@@ -60,14 +60,16 @@ struct GroupNorm_Module : public Vulkan_Module
 	Pass bwd_pass_2;  // groupnorm_grad_2.spv — intermediate sums (sum_dy, sum_dy_xnorm)
 	Pass bwd_pass_4;  // groupnorm_grad_4.spv — dL/dx
 
-	void setDimensions();
+	virtual void setDimensions();
+	virtual void forward();
+	virtual void backward();
+
 	void forward_A();
 	void forward_B();
 	void backward_1();
 	void backward_2();
 	void backward_4();
-	void backward();
-	virtual void run();
+	
 
 	std::vector<f32> mapped_parameters;
 

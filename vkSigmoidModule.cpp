@@ -62,11 +62,6 @@ void Sigmoid_Module::setDimensions()
 	grad_output.dimensions = input_dimensions;
 }
 
-void Sigmoid_Module::run()
-{
-	forward();
-}
-
 void Sigmoid_Module::forward()
 {
 	// binding: input_tensor(0) — in-place operation

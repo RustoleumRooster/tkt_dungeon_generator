@@ -61,11 +61,6 @@ void Silu_Module::setDimensions()
 	grad_output.dimensions   = input_dimensions;
 }
 
-void Silu_Module::run()
-{
-	forward();
-}
-
 void Silu_Module::forward()
 {
 	// bindings: input_tensor(0), output_tensor(1)

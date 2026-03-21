@@ -51,7 +51,6 @@ struct NNUp_Module : public Vulkan_Module
 	void setDimensions();
 	void forward();
 	void backward();
-	virtual void run();
 
 	reflect::input<vkBufferResource>  input;
 	reflect::output<vkBufferResource> output;

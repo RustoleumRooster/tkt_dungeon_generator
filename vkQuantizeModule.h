@@ -35,18 +35,27 @@ struct Quantize_Module : public Vulkan_Module
 		1 //n_vectors
 	};
 
-	virtual void setDimensions() override;
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-	virtual void run();
-	void execute();
-	void cleanup();
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass fwd_pass;
+
+	virtual void setDimensions() override;
+	virtual void forward() override;
 
 	std::vector<f32> mapped_codebook;
 
-	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> output_tensor;
+	reflect::input<vkBufferResource>     input_tensor;
+	reflect::output<vkBufferResource>    output_tensor;
 	reflect::parameter<vkBufferResource> codebook;
 
 	REFLECT_VKMOD()
