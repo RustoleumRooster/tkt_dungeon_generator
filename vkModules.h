@@ -695,8 +695,7 @@ public:
 
 	void initVulkan();
 	
-	void status();
-	void pre_run_check();
+	void set_all_dimensions();
 	void cleanup();
 
 	void createDescriptorPool();

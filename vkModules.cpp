@@ -243,25 +243,6 @@ void Vulkan_Module::initialize(Vulkan_App* vulkan)
 	vulkan->all_modules.push_back(this);
 	m_device = vulkan->m_device;
 	m_DescriptorPool = vulkan->m_DescriptorPool;
-
-	reflect::TypeDescriptor_Struct* tD = GetDynamicReflection();
-
-	
-	for (reflect::Member& m : tD->members)
-	{
-		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-
-		if (m_tD->inherited_type == &reflect::output_type::Reflection)
-		{
-			reflect::output_type* out = (reflect::output_type*)m.get(this);
-			out->vulkan = vulkan;
-		}/*
-		else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
-		{
-			reflect::parameter_type* p = (reflect::parameter_type*)m.get(this);
-			p->vulkan = vulkan;
-		}*/
-	}
 }
 
 bool Vulkan_Module::ready_backward()
@@ -536,11 +517,8 @@ void Vulkan_App::createDescriptorPool() {
 	m_DescriptorPool = new MyDescriptorPool(m_device, 6, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, poolSizes);
 }
 
-void Vulkan_App::pre_run_check()
+void Vulkan_App::set_all_dimensions()
 {
-	reflect::TypeDescriptor* input_tD = reflect::TypeResolver<reflect::input_type>::get();
-	reflect::TypeDescriptor* output_tD = reflect::TypeResolver<reflect::output_type>::get();
-
 	u32 total_mem = 0;
 	for (Vulkan_Module* vk : all_modules)
 	{
@@ -548,39 +526,7 @@ void Vulkan_App::pre_run_check()
 
 		if(vk->is_submodule == false)
 			vk->setDimensions(); //propagate dimensions to inputs/outputs and push constants
-
-		if(false)
-		for (reflect::Member& m : tD->members)
-		{
-			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
-			if (m_tD->inherited_type == input_tD)
-			{
-				reflect::input_type* in = (reflect::input_type*)m.get(vk);
-				if (in->status == reflect::INPUT_NOT_CONNECTED)
-				{
-					vk->log() << tD->name << " disabled\n";
-					vk->enabled = false;
-				}
-			}
-			else if (m_tD->inherited_type == output_tD)
-			{
-				//TODO
-				/*
-				reflect::output_type* out = (reflect::output_type*)m.get(vk);
-				if (m.flags & REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY)
-				{
-					vk->memory_needed = out->dimensions.size();
-					vk->log() << tD->alias << " memory: " << (vk->memory_needed * 4) / 1000 << "k \n";
-					total_mem += (vk->memory_needed * 4);
-				}*/
-			}
-		}
 	}
-	cout << "--------------\n";
-	cout << "total memory use: " << total_mem / (1024 * 1024) << "Mb\n";
-	cout << "GPU RAM size: " << m_device->getDeviceRAMSize() << "Mb \n";
-	cout << "Usage: " << f32(total_mem / (1024 * 1024)) / f32(m_device->getDeviceRAMSize()) << "\n\n";
-
 }
 
 void vkImageSubresource::destroy(VkDevice device)

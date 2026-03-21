@@ -1,0 +1,41 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer InputBuffer
+{
+	float input_b[];
+};
+
+layout(std430, binding = 1) readonly buffer GradInput
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 2) writeonly buffer GradOutput
+{
+	float grad_out[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx   = gl_GlobalInvocationID.x;
+	uint total = pc.n * pc.c * pc.h * pc.w;
+
+	if (idx >= total)
+		return;
+
+	float x       = input_b[idx];
+	float sig     = 1.0 / (1.0 + exp(-x));
+	float dsilu   = sig * (1.0 + x * (1.0 - sig));  // d/dx [x * sigmoid(x)]
+
+	grad_out[idx] = grad_in[idx] * dsilu;
+}

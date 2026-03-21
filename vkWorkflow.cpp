@@ -150,18 +150,15 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 {
 	for (VkMod_Reference& mod : Modules)
 	{
-		if(!mod.X->is_submodule)
+		if (!mod.X->is_submodule)
+		{
 			mod.X->initialize(vulkan);
-	}
-
-	for (VkMod_Reference& mod : Modules)
-	{
-		mod.X->setDimensions();
+			mod.X->setDimensions();
+		}
 	}
 
 	plan_memory(vulkan);
 
-	vulkan->pre_run_check();
 
 	for (VkMod_Reference& mod : Modules)
 	{
