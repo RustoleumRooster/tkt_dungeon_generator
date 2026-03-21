@@ -352,5 +352,8 @@
     <None Include="groupnorm_grad_1.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
+    <None Include="NN_up_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>

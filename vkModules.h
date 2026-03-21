@@ -704,6 +704,7 @@ public:
 	vkMultiImageResource* create_multiImage(int n_layers, int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkImageResource* create_image(int width, int height, VkImageUsageFlags flags, reflect::output_type*);
 	vkBufferResource* create_buffer(VkDeviceSize bufferSize, VkBufferUsageFlags flags);
+	vkBufferResource* create_buffer_slice(vkBufferResource* pool, VkDeviceSize offset, VkDeviceSize size);
 
 	template<typename T>
 	Vulkan_Module* create_module();

@@ -160,13 +160,13 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 		if(mod.X->is_submodule == false)
 			mod.X->signaled();
 	}
-
+	/*
 	if (backward_pass_head)
 	{
 		if(backward_pass_head->ready_backward())
 			backward_pass_head->backward();
 	}
-
+	*/
 	vulkan->cleanup();
 
 }

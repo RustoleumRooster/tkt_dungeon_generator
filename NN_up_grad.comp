@@ -1,0 +1,56 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer GradOutput
+{
+	float grad_output_buf[];
+};
+
+layout(std430, binding = 1) writeonly buffer GradInput
+{
+	float grad_input_buf[];
+};
+
+// Note: Input and Output are labeled here to match the forward pass
+// The opposite labeling is used in the .cpp module because the gradient flows in the opposite direction
+//
+
+layout(push_constant) uniform PushConstants
+{
+	uint C;
+	uint H;          // output height (2x)
+	uint W;          // output width  (2x)
+	uint n_elements; // input element count: N * C * (H/2) * (W/2)
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	if (idx >= pc.n_elements)
+		return;
+
+	uint H_in  = pc.H / 2;
+	uint W_in  = pc.W / 2;
+	uint HW_in = H_in * W_in;
+	uint CHW_in = pc.C * HW_in;
+
+	uint n    = idx / CHW_in;
+	uint c    = (idx % CHW_in) / HW_in;
+	uint hw   = idx % HW_in;
+	uint h_in = hw / W_in;
+	uint w_in = hw % W_in;
+
+	uint HW_out = pc.H * pc.W;
+	uint base   = n * pc.C * HW_out + c * HW_out;
+
+	// Sum the 4 output grads that came from this input element
+	float g = 0.0;
+	g += grad_output_buf[base + (2u * h_in + 0u) * pc.W + (2u * w_in + 0u)];
+	g += grad_output_buf[base + (2u * h_in + 0u) * pc.W + (2u * w_in + 1u)];
+	g += grad_output_buf[base + (2u * h_in + 1u) * pc.W + (2u * w_in + 0u)];
+	g += grad_output_buf[base + (2u * h_in + 1u) * pc.W + (2u * w_in + 1u)];
+
+	grad_input_buf[idx] = g;
+}

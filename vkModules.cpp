@@ -576,6 +576,24 @@ vkBufferResource* Vulkan_App::create_buffer(VkDeviceSize bufferSize, VkBufferUsa
 	return buffer;
 }
 
+vkBufferResource* Vulkan_App::create_buffer_slice(vkBufferResource* pool, VkDeviceSize offset, VkDeviceSize size)
+{
+	vkBufferResource* slice = new vkBufferResource();
+
+	slice->Buffer              = pool->Buffer;
+	slice->BufferMemory        = pool->BufferMemory;
+	slice->BufferInfo.buffer   = pool->Buffer;
+	slice->BufferInfo.offset   = offset;
+	slice->BufferInfo.range    = size;
+	slice->range               = size;
+	slice->used                = size;
+	slice->status              = RESOURCE_VALID;
+
+	resources.push_back(slice);
+
+	return slice;
+}
+
 void Vulkan_App::createCommandBuffers() {
 	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 

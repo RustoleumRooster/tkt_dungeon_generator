@@ -33,18 +33,30 @@ struct NNUp_Module : public Vulkan_Module
 
 	pushconstant_struct pushconstants{ 128, 16, 16, 16*128*16*16 };
 
-	void setDimensions();
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
 
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass fwd_pass;
+	Pass bwd_pass;
+
+	void setDimensions();
+	void forward();
+	void backward();
 	virtual void run();
-	void execute();
-	void cleanup();
 
 	reflect::input<vkBufferResource>  input;
 	reflect::output<vkBufferResource> output;
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	reflect::input<vkBufferResource>  grad_input;
+	reflect::output<vkBufferResource> grad_output;
 
 	REFLECT_VKMOD()
 };
