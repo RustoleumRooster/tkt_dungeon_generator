@@ -111,8 +111,8 @@ void Vulkan_Workflow::make_default_workflow()
 	// Decoder
 	//
 
-	reflect::connect(&quantize->output, &res_block->input_tensor);
-	reflect::connect(&quantize->output, &res_block->head_input());
+	reflect::connect(&quantize->output_tensor, &res_block->input_tensor);
+	reflect::connect(&quantize->output_tensor, &res_block->head_input());
 
 	reflect::connect(&res_block->tail_output(), &up_block->input_tensor);
 	reflect::connect(&res_block->tail_output(), &up_block->head_input());
@@ -217,24 +217,33 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				assert(sz < device_local_total && "plan_memory: single buffer exceeds total device memory");
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
-					grad_total += sz;
+				{
+					//it's a reusable buffer, just size it up to the largest size needed!
+					grad_total = std::max(grad_total, sz);
+				}
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
 					feature_total += sz;
-				else if (m.flags & REFLECT_VKMOD_COMPONENT_PARAM)
-					param_total += sz;
 				else
 					other_total += sz;
+			}
+			else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
+			{
+				reflect::parameter_type* out = (reflect::parameter_type*)m.get(mod);
+				VkDeviceSize sz = out->aligned_size(alignment);
+
+				param_total += sz;
 			}
 		}
 	}
 
-	VkDeviceSize grand_total = feature_total + param_total + grad_total + other_total;
+	VkDeviceSize grand_total = feature_total + param_total*2 + grad_total + other_total;
 	assert(grand_total <= (device_local_total * 9 / 10) &&
 	       "plan_memory: total allocation exceeds 90% of device-local memory");
 
 	std::cout << "  Feature maps : " << mb(feature_total) << " MB\n";
 	std::cout << "  Parameters   : " << mb(param_total)   << " MB\n";
-	std::cout << "  Gradients    : " << mb(grad_total)    << " MB\n";
+	std::cout << "  Param Grads  : " << mb(param_total)   << " MB\n";
+	std::cout << "  Grad (tmp)   : " << mb(grad_total)    << " MB\n";
 	std::cout << "  Other        : " << mb(other_total)   << " MB\n";
 	std::cout << "  Total        : " << mb(grand_total)   << " MB  ("
 	          << mb(device_local_total * 9 / 10) << " MB budget)\n";
@@ -252,10 +261,12 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	{
 		param_buffer = vulkan->create_buffer(param_total, usage);
 		std::cout << "  param_buffer created\n";
+		param_grad_buffer = vulkan->create_buffer(param_total, usage);
+		std::cout << "  param_grad_buffer created\n";
 	}
 	if (grad_total > 0)
 	{
-		grad_buffer = vulkan->create_buffer(grad_total, usage);
+		grad_tmp_buffer = vulkan->create_buffer(grad_total, usage);
 		std::cout << "  grad_buffer created\n";
 	}
 	if (other_total > 0)
@@ -266,7 +277,6 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 	VkDeviceSize feature_t = 0;
 	VkDeviceSize param_t = 0;
-	VkDeviceSize grad_t = 0;
 	VkDeviceSize other_t = 0;
 
 	for (VkMod_Reference& ref : Modules)
@@ -287,12 +297,11 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
-					out->X->Buffer = grad_buffer->Buffer;
-					out->X->BufferInfo.buffer = grad_buffer->Buffer;
-					out->X->BufferInfo.offset = grad_t;
+					out->X->Buffer = grad_tmp_buffer->Buffer;
+					out->X->BufferInfo.buffer = grad_tmp_buffer->Buffer;
+					out->X->BufferInfo.offset = 0; //reusable buffer-- no offset
 					out->X->BufferInfo.range = sz;
-					out->X->BufferMemory = grad_buffer->BufferMemory;
-					grad_t += sz;
+					out->X->BufferMemory = grad_tmp_buffer->BufferMemory;
 
 				}
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
@@ -303,17 +312,6 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 					out->X->BufferInfo.range = sz;
 					out->X->BufferMemory = feature_buffer->BufferMemory;
 					feature_t += sz;
-
-				}
-				else if (m.flags & REFLECT_VKMOD_COMPONENT_PARAM)
-				{
-					out->X->Buffer = param_buffer->Buffer;
-					out->X->BufferInfo.buffer = param_buffer->Buffer;
-					out->X->BufferInfo.offset = param_t;
-					out->X->BufferInfo.range = sz;
-					out->X->BufferMemory = param_buffer->BufferMemory;
-					param_t += sz;
-
 				}
 				else
 				{
@@ -324,6 +322,25 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 					out->X->BufferMemory = other_buffer->BufferMemory;
 					other_t += sz;
 				}
+			}
+			else if (m_tD == &reflect::parameter<vkBufferResource>::Reflection)
+			{
+				reflect::parameter<vkBufferResource>* p = (reflect::parameter<vkBufferResource>*)m.get(mod);
+				VkDeviceSize sz = p->aligned_size(alignment);
+
+				p->X->Buffer = param_buffer->Buffer;
+				p->X->BufferInfo.buffer = param_buffer->Buffer;
+				p->X->BufferInfo.offset = param_t;
+				p->X->BufferInfo.range = sz;
+				p->X->BufferMemory = param_buffer->BufferMemory;
+
+				p->Y->Buffer = param_grad_buffer->Buffer;
+				p->Y->BufferInfo.buffer = param_grad_buffer->Buffer;
+				p->Y->BufferInfo.offset = param_t;
+				p->Y->BufferInfo.range = sz;
+				p->Y->BufferMemory = param_grad_buffer->BufferMemory;
+
+				param_t += sz;
 			}
 		}
 	}

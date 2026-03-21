@@ -168,6 +168,7 @@
     <ClCompile Include="edit_env.cpp" />
     <ClCompile Include="ex_gui_elements.cpp" />
     <ClCompile Include="fonts.cpp" />
+    <ClCompile Include="groupnorm_grad_1.comp" />
     <ClCompile Include="GUI_tools.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Refl_Primitives.cpp" />
@@ -232,6 +233,9 @@
     <None Include="conv_grad_b.comp" />
     <None Include="groupnorm.comp" />
     <None Include="groupnorm2.comp" />
+    <None Include="groupnorm_grad_2.comp" />
+    <None Include="groupnorm_grad_3.comp" />
+    <None Include="groupnorm_grad_4.comp" />
     <None Include="mean_var.comp" />
     <None Include="NN_up.comp" />
     <None Include="quantize.comp" />

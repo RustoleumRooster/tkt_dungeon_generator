@@ -3,9 +3,9 @@
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 #extension GL_EXT_shader_atomic_float : enable
 
-layout(std430, binding = 0) buffer Input_tensor
+layout(std430, binding = 0) readonly buffer InputBuffer
 {
-	float input_tensor[];
+	float input_b[];
 };
 
 layout(std430, binding = 1) readonly buffer Parameters
@@ -19,10 +19,22 @@ layout(std430, binding = 2) readonly buffer Mean_buffer
 	float mean_buffer[];
 };
 
-layout(std430, binding = 3) readonly buffer Var_buffer
+layout(std430, binding = 3) readonly buffer InvStd_buffer
 {
-	float var_buffer[];
+	float invstd_buffer[];
 };
+
+layout(std430, binding = 4) writeonly buffer OutputBuffer
+{
+	float output_b[];
+};
+
+layout(std430, binding = 5) writeonly buffer XNormBuffer
+{
+	float xnorm_buffer[];
+};
+
+
 
 /*
 layout(std430, binding = 4) writeonly buffer resultsBuffer
@@ -59,12 +71,18 @@ void main()
 
 	uint group_idx = batch_idx * co.num_groups + g;
 	float mean     = mean_buffer[group_idx];
-	float var      = var_buffer[group_idx];
-	float inv_std  = inversesqrt(var + 1e-5);
+	//float var      = var_buffer[group_idx];
+	//float inv_std  = inversesqrt(var + 1e-5);
 
 	float gamma = parameters[c * 2 + 0];
 	float beta  = parameters[c * 2 + 1];
 
-	float val         = input_tensor[idx];
-	input_tensor[idx] = gamma * (val - mean) * inv_std + beta;
+	float x         = input_b[idx];
+	float x_norm = (x - mean) * invstd_buffer[idx];
+
+	xnorm_buffer[idx] = x_norm;
+	output_b[idx] = gamma * x_norm + beta;
+
+	//output_b[idx] = gamma * (x - mean) * inv_std + beta;
+	
 }

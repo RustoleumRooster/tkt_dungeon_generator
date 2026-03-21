@@ -40,18 +40,30 @@ struct Silu_Module : public Vulkan_Module
 		8,   //w
 	};
 
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass fwd_pass;
+	Pass bwd_pass;
+
 	void setDimensions();
-	void createDescriptorSets();
-	void createDescriptorSetLayout();
-
+	void forward();
+	void backward();
 	virtual void run();
-	void execute();
-	void cleanup();
 
-	reflect::input<vkBufferResource> input_tensor;
+	reflect::input<vkBufferResource>  input_tensor;
 	reflect::output<vkBufferResource> output_tensor;
-
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
+	reflect::input<vkBufferResource>  grad_input;
+	reflect::output<vkBufferResource> grad_output;
 
 	REFLECT_VKMOD()
 };

@@ -450,13 +450,24 @@ namespace reflect
 		REFLECT_CUSTOM_STRUCT()
 	};
 
-	/*
+	
 	struct parameter_type : public inout_gui_type
 	{
-		virtual void make_buffer() = 0;
 		Vulkan_Module* owner = NULL;
 		TensorDimension dimensions; //not reflected
 		bool ready = false;
+		bool grad_ready = false;
+
+		VkDeviceSize size() const
+		{
+			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(f32);
+		}
+
+		VkDeviceSize aligned_size(VkDeviceSize alignment) const
+		{
+			VkDeviceSize s = size();
+			return (s + alignment - 1) & ~(alignment - 1);
+		}
 
 		REFLECT3()
 	};
@@ -464,18 +475,15 @@ namespace reflect
 	template <typename TY>
 	struct parameter : public parameter_type
 	{
-		parameter(std::vector<f32>&) : map{ map } {}
 		struct attributes
 		{
 		};
 
 		TY* X = NULL;
-		std::vector<f32>& map = NULL;
-
-		virtual void make_buffer();
+		TY* Y = NULL;
 
 		REFLECT_CUSTOM_STRUCT()
-	};*/
+	};
 
 	//void connect(output<vkImageArrayResource>* in, input<vkMultiImageResource>* out);
 	//void connect(output<vkMultiImageResource>* in, input<vkImageArrayResource>* out);
@@ -740,7 +748,8 @@ public:
 
 	vkBufferResource* feature_buffer = NULL;
 	vkBufferResource* param_buffer   = NULL;
-	vkBufferResource* grad_buffer    = NULL;
+	vkBufferResource* param_grad_buffer   = NULL;
+	vkBufferResource* grad_tmp_buffer    = NULL;
 	vkBufferResource* other_buffer   = NULL;
 
 	Vulkan_Module* get_module_by_uid(u64 uid)

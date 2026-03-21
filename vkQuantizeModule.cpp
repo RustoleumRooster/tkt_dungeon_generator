@@ -27,8 +27,8 @@ REFLECT_VKMOD_BEGIN(Quantize_Module)
 	ALIAS("Quantize Layer")
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_PARAM(codebook)
-	REFLECT_VKMOD_FEAT(output)
 REFLECT_VKMOD_END()
 
 void Quantize_Module::run()
@@ -42,7 +42,7 @@ void Quantize_Module::run()
 
 	createComputePipeline("shaders/quantize.spv", push_constant);
 
-	output.ready = true;
+	output_tensor.ready = true;
 
 	execute();
 	cleanup();
@@ -51,7 +51,7 @@ void Quantize_Module::run()
 void Quantize_Module::setDimensions()
 {
 	codebook.dimensions = codebook_size;
-	output.dimensions = { this->input_dimensions.B,this->input_dimensions.C,this->input_dimensions.H,this->input_dimensions.W };
+	output_tensor.dimensions = { this->input_dimensions.B,this->input_dimensions.C,this->input_dimensions.H,this->input_dimensions.W };
 	pushconstants.n_vectors = this->codebook_size.H;
 }
 
@@ -63,7 +63,7 @@ void Quantize_Module::createDescriptorSets()
 
 	writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 	writer.writeBuffer(1, codebook.X->getDescriptorBufferInfo());
-	writer.writeBuffer(2, output.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
 
 	writer.build(descriptorSets[0]);
 }
@@ -74,7 +74,7 @@ void Quantize_Module::createDescriptorSetLayout()
 	bindings.resize(3);
 	bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bindings[1] = codebook.X->getDescriptorSetLayout(1);
-	bindings[2] = output.X->getDescriptorSetLayout(2);
+	bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
 
 	descriptorSetLayout = new MyDescriptorSetLayout(m_device, bindings);
 }

@@ -1,0 +1,82 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input_grad
+{
+	float input_grad[];
+};
+
+layout(std430, binding = 1) readonly buffer	X_Norm
+{
+	float x_norm[];
+};
+
+layout(std430, binding = 2) writeonly buffer param_grad_buffer
+{
+	float grad_buffer[];
+};
+
+/*
+layout(std430, binding = 2) writeonly buffer resultsBuffer
+{
+	vec3 results[];
+};
+*/
+
+layout(push_constant) uniform PushConstants 
+{
+	uint N;
+	uint C;
+	uint H;
+	uint W;
+	uint num_groups;
+} pc;
+
+
+layout(local_size_x = 256) in;  // 256 threads per WG
+
+shared float sg_partials[8];
+
+void main()
+{ 
+	// Gradient for Gamma
+
+	uint c = gl_WorkGroupID.x;
+	uint id = gl_LocalInvocationID.x;
+	uint HW = pc.H * pc.W;
+	uint N = pc.N;
+
+	if(id >= HW)
+		return;
+
+	float y = 0.0;
+
+	for(int n=0; n<N; n++)
+	{
+		for(uint i=id; i<HW; i+=256)
+			y += input_grad[n * pc.C * HW + c * HW + i] * x_norm[n * pc.C * HW + c * HW + i];
+	}
+
+	if(subgroupElect())
+	{
+		sg_partials[gl_SubgroupID] = subgroupAdd(y);
+	}
+
+	barrier();
+
+	// Layout of the parameter buffer is:
+	// float gamma = parameters[c * 2 + 0];
+	// float beta  = parameters[c * 2 + 1];
+
+	if(id == 0)
+	{
+		float tot = 0.0;
+
+		for(int i=0;i<8;i++)
+			tot += sg_partials[i];
+
+		grad_buffer[c * 2 + 0] = tot;
+	}
+}

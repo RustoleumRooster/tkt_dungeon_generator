@@ -15,10 +15,10 @@ using namespace std;
 REFLECT_VKMOD_BEGIN(Sigmoid_Module)
 	ALIAS("Sigmoid Layer")
 	INHERIT_FROM(Vulkan_Module)
-	REFLECT_VKMOD_MEMBER(input_tensor)
-	REFLECT_VKMOD_MEMBER(output_tensor)
-	REFLECT_VKMOD_MEMBER(grad_input)
-	REFLECT_VKMOD_MEMBER(grad_output)
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
+	REFLECT_VKMOD_GRAD(grad_input)
+	REFLECT_VKMOD_GRAD(grad_output)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -70,8 +70,9 @@ void Sigmoid_Module::run()
 void Sigmoid_Module::forward()
 {
 	// binding: input_tensor(0) — in-place operation
-	fwd_pass.bindings.resize(1);
+	fwd_pass.bindings.resize(2);
 	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	fwd_pass.bindings[1] = output_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
 	VkPushConstantRange push_constant;

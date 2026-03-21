@@ -70,13 +70,12 @@ REFLECT_VKMOD_BEGIN(Convolution_Module)
 	ALIAS("Convolution Layer")
 	INHERIT_FROM(Vulkan_Module)
 	//Forward Pass
+	REFLECT_VKMOD_FEAT(input_tensor)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	REFLECT_VKMOD_PARAM(weights)
-	REFLECT_VKMOD_FEAT(input_tensor)
 	//Backward Pass
 	REFLECT_VKMOD_GRAD(grad_input)
 	REFLECT_VKMOD_GRAD(grad_output)
-	REFLECT_VKMOD_GRAD(grad_weights)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -111,9 +110,8 @@ void Convolution_Module::Pass::cleanup(VkDevice device)
 void Convolution_Module::setDimensions()
 {
 	output_tensor.dimensions    = output_dimensions;
-	weights.dimensions        = { input_dimensions.C, output_dimensions.C, pushconstants.k, pushconstants.k };
-	grad_output.dimensions    = input_dimensions;
-	grad_weights.dimensions   = weights.dimensions;
+	weights.dimensions			= { input_dimensions.C, output_dimensions.C, pushconstants.k, pushconstants.k };
+	grad_output.dimensions		= input_dimensions;
 
 	pushconstants.c_in         = input_dimensions.C;
 	pushconstants.c_out        = output_dimensions.C;
@@ -259,7 +257,7 @@ void Convolution_Module::backward_B()
 	bwd_pass_B.bindings.resize(3);
 	bwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bwd_pass_B.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
-	bwd_pass_B.bindings[2] = grad_weights.X->getDescriptorSetLayout(2);
+	bwd_pass_B.bindings[2] = weights.Y->getDescriptorSetLayout(2);
 	bwd_pass_B.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_B.bindings);
 
 	VkPushConstantRange push_constant;
@@ -269,14 +267,14 @@ void Convolution_Module::backward_B()
 
 	bwd_pass_B.createPipeline(m_device, "shaders/conv_grad_b.spv", push_constant);
 
-	grad_weights.ready = true;
+	weights.grad_ready = true;
 
 	{
 		MyDescriptorWriter writer(*bwd_pass_B.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass_B.descriptorSets.resize(1);
 		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, grad_input.X->getDescriptorBufferInfo());
-		writer.writeBuffer(2, grad_weights.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, weights.Y->getDescriptorBufferInfo());
 		writer.build(bwd_pass_B.descriptorSets[0]);
 	}
 

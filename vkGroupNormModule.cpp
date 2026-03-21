@@ -17,9 +17,11 @@ REFLECT_VKMOD_BEGIN(GroupNorm_Module)
 	INHERIT_FROM(Vulkan_Module)
 	REFLECT_VKMOD_FEAT(input_tensor)
 	REFLECT_VKMOD_MEMBER(mean_buffer)
-	REFLECT_VKMOD_MEMBER(var_buffer)
+	REFLECT_VKMOD_MEMBER(invstd_buffer)
+	REFLECT_VKMOD_MEMBER(int_sums_buffer)
 	REFLECT_VKMOD_PARAM(parameters)
 	REFLECT_VKMOD_FEAT(output_tensor)
+	REFLECT_VKMOD_FEAT(xnorm_buffer)
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -77,7 +79,7 @@ void GroupNorm_Module::forward_A()
 	fwd_pass_A.bindings.resize(3);
 	fwd_pass_A.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass_A.bindings[1] = mean_buffer.X->getDescriptorSetLayout(1);
-	fwd_pass_A.bindings[2] = var_buffer.X->getDescriptorSetLayout(2);
+	fwd_pass_A.bindings[2] = invstd_buffer.X->getDescriptorSetLayout(2);
 	fwd_pass_A.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass_A.bindings);
 
 	VkPushConstantRange push_constant;
@@ -130,12 +132,14 @@ void GroupNorm_Module::forward_A()
 void GroupNorm_Module::forward_B()
 {
 	// bindings: input_tensor(0), parameters(1), mean_buffer(2), var_buffer(3)
-	// applies normalization with learned gamma/beta in-place
-	fwd_pass_B.bindings.resize(4);
+	// applies normalization with learned gamma/beta
+	fwd_pass_B.bindings.resize(6);
 	fwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass_B.bindings[1] = parameters.X->getDescriptorSetLayout(1);
 	fwd_pass_B.bindings[2] = mean_buffer.X->getDescriptorSetLayout(2);
-	fwd_pass_B.bindings[3] = var_buffer.X->getDescriptorSetLayout(3);
+	fwd_pass_B.bindings[3] = invstd_buffer.X->getDescriptorSetLayout(3);
+	fwd_pass_B.bindings[4] = output_tensor.X->getDescriptorSetLayout(4);
+	fwd_pass_B.bindings[5] = xnorm_buffer.X->getDescriptorSetLayout(5);
 	fwd_pass_B.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass_B.bindings);
 
 	VkPushConstantRange push_constant;
@@ -151,7 +155,8 @@ void GroupNorm_Module::forward_B()
 		writer.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
 		writer.writeBuffer(1, parameters.X->getDescriptorBufferInfo());
 		writer.writeBuffer(2, mean_buffer.X->getDescriptorBufferInfo());
-		writer.writeBuffer(3, var_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(3, invstd_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(4, output_tensor.X->getDescriptorBufferInfo());
 		writer.build(fwd_pass_B.descriptorSets[0]);
 	}
 

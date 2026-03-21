@@ -108,6 +108,10 @@ void main()
 		{
 			var += sg_partials[i];
 		}
-		var_buffer[n * co.num_groups + g] = var / 256.0;
+
+		//float inv_std  = inversesqrt(var + 1e-5);
+		// save the inv std deviation instead of the var, cuz that's what we actually use
+
+		var_buffer[n * co.num_groups + g] = inversesqrt((var / 256.0) + 1e-5);
 	}
 }

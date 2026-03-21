@@ -46,8 +46,8 @@ struct Quantize_Module : public Vulkan_Module
 	std::vector<f32> mapped_codebook;
 
 	reflect::input<vkBufferResource> input_tensor;
-	reflect::output<vkBufferResource> codebook;
-	reflect::output<vkBufferResource> output;
+	reflect::output<vkBufferResource> output_tensor;
+	reflect::parameter<vkBufferResource> codebook;
 
 	REFLECT_VKMOD()
 };

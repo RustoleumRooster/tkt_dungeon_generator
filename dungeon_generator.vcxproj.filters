@@ -201,6 +201,9 @@
     <ClCompile Include="vkBCELossModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="groupnorm_grad_1.comp">
+      <Filter>Source Files\glsl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -337,8 +340,19 @@
     <None Include="sigmoid_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
-    <None Include="conv_grad.comp" />
     <None Include="conv_grad_b.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="groupnorm_grad_2.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="groupnorm_grad_3.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="conv_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="groupnorm_grad_4.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>

@@ -67,9 +67,11 @@ struct GroupNorm_Module : public Vulkan_Module
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    mean_buffer;
-	reflect::output<vkBufferResource>    var_buffer;
+	reflect::output<vkBufferResource>    invstd_buffer;
 	reflect::output<vkBufferResource>    output_tensor;
-	reflect::output<vkBufferResource> parameters;
+	reflect::output<vkBufferResource>    xnorm_buffer;
+	reflect::output<vkBufferResource>    int_sums_buffer; //intermediate values for the backward pass
+	reflect::parameter<vkBufferResource> parameters;
 
 	REFLECT_VKMOD()
 };

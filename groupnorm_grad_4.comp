@@ -1,0 +1,89 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer Input_grad
+{
+	float input_grad[];
+};
+
+layout(std430, binding = 1) readonly buffer	X_Norm
+{
+	float xnorm[];
+};
+
+layout(std430, binding = 2) readonly buffer	Inv_Std
+{
+	float inv_std[];
+};
+
+layout(std430, binding = 3) readonly buffer	Intermediate_Sums
+{
+	float int_sums[];
+};
+
+layout(std430, binding = 4) readonly buffer	Params
+{
+	float params[];
+};
+
+layout(std430, binding = 5) writeonly buffer Output_grad
+{
+	float output_grad[];
+};
+
+layout(push_constant) uniform PushConstants 
+{
+	uint N;
+	uint C;
+	uint H;
+	uint W;
+	uint num_groups;
+} pc;
+
+layout(local_size_x = 256) in;
+
+// Layout of the intermediate sums buffer is:
+// float sum_dy			= sums[(n * n_groups * 2) + (g * 2) + 0];
+// float sum_dy_xnorm	= sums[(n * n_groups * 2) + (g * 2) + 1];
+//
+// Layout of the parameter buffer is:
+// float gamma = parameters[c * 2 + 0];
+// float beta  = parameters[c * 2 + 1];
+
+void main()
+{ 
+	uint idx = gl_GlobalInvocationID.x;
+
+	uint HW    = pc.H * pc.W;
+	uint CHW   = pc.C * HW;
+
+	if (idx >= pc.N * CHW)
+		return;
+
+	uint c         = (idx % CHW) / HW;
+	uint g         = c / (pc.C / pc.num_groups);
+
+	uint n = idx / CHW;
+	uint j = idx % HW;
+
+	uint N = (pc.C / pc.num_groups) * HW;
+
+	//intermediate values (depend on group g)
+	float invstd		= inv_std[ n * pc.num_groups + g ];
+	float sum_dy		= int_sums[ (n * pc.num_groups * 2) + (g * 2) + 0 ];
+	float sum_dy_xnorm	= int_sums[ (n * pc.num_groups * 2) + (g * 2) + 1 ];
+
+	//parameters (depend on channel c)
+	float gamma			= params[c * 2 + 0];
+		
+	//x_norm and dldy (per element)
+	float x_norm		= xnorm[ n * pc.C * HW + c * HW + j ];
+	float dldy			= input_grad[n * pc.C * HW + c * HW + j];
+
+	float dldx			= (gamma * invstd / float(N)) * (float(N) * dldy - sum_dy - sum_dy_xnorm * x_norm);
+
+	output_grad[n * pc.C * HW + c * HW + j] = dldx;
+
+}

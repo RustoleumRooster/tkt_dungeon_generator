@@ -96,14 +96,11 @@ struct Convolution_Module : public Vulkan_Module
 	void backward_B();
 	virtual void run();
 
-	std::vector<f32> mapped_weights;
-
-	reflect::output<vkBufferResource> weights;
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;
+	reflect::parameter<vkBufferResource> weights;
 	reflect::input<vkBufferResource>     grad_input;
 	reflect::output<vkBufferResource>    grad_output;
-	reflect::output<vkBufferResource>    grad_weights;
 
 	REFLECT_VKMOD()
 };
@@ -151,7 +148,6 @@ struct Normalization_Module : public Vulkan_Module
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> mean_buffer;
 	reflect::output<vkBufferResource> var_buffer;
-	//reflect::output<vkBufferResource> output_tensor;
 
 	REFLECT_VKMOD()
 };
