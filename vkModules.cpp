@@ -294,7 +294,7 @@ bool Vulkan_Module::ready_forward()
 		reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
 
 		if (m_tD->inherited_type == &reflect::input_type::Reflection &&
-			!(m.flags & REFLECT_VKMOD_COMPONENT_FEAT))
+			(m.flags & REFLECT_VKMOD_COMPONENT_FEAT))
 		{
 			reflect::input_type* in = (reflect::input_type*)m.get(this);
 			if (in->ready == false)
@@ -588,6 +588,7 @@ vkBufferResource* Vulkan_App::create_buffer_slice(vkBufferResource* pool, VkDevi
 	slice->range               = size;
 	slice->used                = size;
 	slice->status              = RESOURCE_VALID;
+	slice->is_slice            = true;
 
 	resources.push_back(slice);
 
@@ -670,6 +671,7 @@ void Vulkan_App::pre_run_check()
 		if(vk->is_submodule == false)
 			vk->setDimensions(); //propagate dimensions to inputs/outputs and push constants
 
+		if(false)
 		for (reflect::Member& m : tD->members)
 		{
 			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
@@ -866,6 +868,9 @@ VkDescriptorBufferInfo* vkBufferResource::getDescriptorBufferInfo()
 
 void vkBufferResource::destroy(VkDevice device)
 {
+	if (is_slice)
+		return;
+
 	vkDestroyBuffer(device, Buffer, nullptr);
 	vkFreeMemory(device, BufferMemory, nullptr);
 }

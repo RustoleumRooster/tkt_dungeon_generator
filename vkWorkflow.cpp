@@ -297,29 +297,17 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
-					out->X->Buffer = grad_tmp_buffer->Buffer;
-					out->X->BufferInfo.buffer = grad_tmp_buffer->Buffer;
-					out->X->BufferInfo.offset = 0; //reusable buffer-- no offset
-					out->X->BufferInfo.range = sz;
-					out->X->BufferMemory = grad_tmp_buffer->BufferMemory;
-
+					// grad buffers are reused each backward pass -- all share the same pool, no offset
+					out->X = vulkan->create_buffer_slice(grad_tmp_buffer, 0, sz);
 				}
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
 				{
-					out->X->Buffer = feature_buffer->Buffer;
-					out->X->BufferInfo.buffer = feature_buffer->Buffer;
-					out->X->BufferInfo.offset = feature_t;
-					out->X->BufferInfo.range = sz;
-					out->X->BufferMemory = feature_buffer->BufferMemory;
+					out->X = vulkan->create_buffer_slice(feature_buffer, feature_t, sz);
 					feature_t += sz;
 				}
 				else
 				{
-					out->X->Buffer = other_buffer->Buffer;
-					out->X->BufferInfo.buffer = other_buffer->Buffer;
-					out->X->BufferInfo.offset = other_t;
-					out->X->BufferInfo.range = sz;
-					out->X->BufferMemory = other_buffer->BufferMemory;
+					out->X = vulkan->create_buffer_slice(other_buffer, other_t, sz);
 					other_t += sz;
 				}
 			}
@@ -328,17 +316,8 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				reflect::parameter<vkBufferResource>* p = (reflect::parameter<vkBufferResource>*)m.get(mod);
 				VkDeviceSize sz = p->aligned_size(alignment);
 
-				p->X->Buffer = param_buffer->Buffer;
-				p->X->BufferInfo.buffer = param_buffer->Buffer;
-				p->X->BufferInfo.offset = param_t;
-				p->X->BufferInfo.range = sz;
-				p->X->BufferMemory = param_buffer->BufferMemory;
-
-				p->Y->Buffer = param_grad_buffer->Buffer;
-				p->Y->BufferInfo.buffer = param_grad_buffer->Buffer;
-				p->Y->BufferInfo.offset = param_t;
-				p->Y->BufferInfo.range = sz;
-				p->Y->BufferMemory = param_grad_buffer->BufferMemory;
+				p->X = vulkan->create_buffer_slice(param_buffer,      param_t, sz);
+				p->Y = vulkan->create_buffer_slice(param_grad_buffer, param_t, sz);
 
 				param_t += sz;
 			}

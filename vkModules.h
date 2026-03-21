@@ -276,6 +276,7 @@ struct vkBufferResource : public vkMemoryResource
 	u32 range = 0;
 	u32 used = 0;
 	VkDescriptorBufferInfo BufferInfo;
+	bool is_slice = false; // if true, Buffer/BufferMemory are owned by a pool — do not destroy
 
 	vkBufferResource() : vkMemoryResource() {}
 	VkDescriptorSetLayoutBinding getDescriptorSetLayout(u32);
