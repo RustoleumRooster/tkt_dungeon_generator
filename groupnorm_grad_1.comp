@@ -8,17 +8,15 @@ layout(std430, binding = 0) readonly buffer Input_grad
 	float input_grad[];
 };
 
-layout(std430, binding = 1) writeonly buffer param_grad_buffer
+layout(std430, binding = 1) readonly buffer	X_Norm
+{
+	float x_norm[];
+};
+
+layout(std430, binding = 2) writeonly buffer param_grad_buffer
 {
 	float grad_buffer[];
 };
-
-/*
-layout(std430, binding = 2) writeonly buffer resultsBuffer
-{
-	vec3 results[];
-};
-*/
 
 layout(push_constant) uniform PushConstants 
 {
@@ -33,10 +31,11 @@ layout(push_constant) uniform PushConstants
 layout(local_size_x = 256) in;  // 256 threads per WG
 
 shared float sg_partials[8];
+shared float sg_partials_2[8];
 
 void main()
 { 
-	// Gradient for Beta
+	// Gradients for Beta and Gamma
 
 	uint c = gl_WorkGroupID.x;
 	uint id = gl_LocalInvocationID.x;
@@ -46,17 +45,27 @@ void main()
 	if(id >= HW)
 		return;
 
-	float y = 0.0;
+	float y1 = 0.0;
+	float y2 = 0.0;
 
 	for(int n=0; n<N; n++)
 	{
 		for(uint i=id; i<HW; i+=256)
-			y += input_grad[n * pc.C * HW + c * HW + i];
+		{
+			float dldy = input_grad[n * pc.C * HW + c * HW + i];
+
+			y1 += dldy;
+			y2 += dldy * x_norm[n * pc.C * HW + c * HW + i];
+		}
 	}
+
+	float s1 = subgroupAdd(y1);
+	float s2 = subgroupAdd(y2);
 
 	if(subgroupElect())
 	{
-		sg_partials[gl_SubgroupID] = subgroupAdd(y);
+		sg_partials[gl_SubgroupID] = s1;
+		sg_partials_2[gl_SubgroupID] = s2;
 	}
 
 	barrier();
@@ -69,9 +78,18 @@ void main()
 	{
 		float tot = 0.0;
 
-		for(int i=0;i<8;i++)
+		for(int i=0; i<8; i++)
 			tot += sg_partials[i];
 
+		//beta
 		grad_buffer[c * 2 + 1] = tot;
+
+		tot = 0.0;
+
+		for(int i=0; i<8;i ++)
+			tot += sg_partials_2[i];
+
+		//gamma
+		grad_buffer[c * 2 + 0] = tot;
 	}
 }

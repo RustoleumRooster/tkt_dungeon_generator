@@ -343,9 +343,6 @@
     <None Include="conv_grad_b.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
-    <None Include="groupnorm_grad_2.comp">
-      <Filter>Source Files\glsl</Filter>
-    </None>
     <None Include="groupnorm_grad_3.comp">
       <Filter>Source Files\glsl</Filter>
     </None>

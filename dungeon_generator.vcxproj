@@ -233,7 +233,6 @@
     <None Include="conv_grad_b.comp" />
     <None Include="groupnorm.comp" />
     <None Include="groupnorm2.comp" />
-    <None Include="groupnorm_grad_2.comp" />
     <None Include="groupnorm_grad_3.comp" />
     <None Include="groupnorm_grad_4.comp" />
     <None Include="mean_var.comp" />
