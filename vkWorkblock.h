@@ -14,6 +14,7 @@ struct Normalization_Module;
 struct Activation_Module;
 struct GroupNorm_Module;
 struct Silu_Module;
+struct Gelu_Module;
 struct Skip_Module;
 struct NNUp_Module;
 struct Sigmoid_Module;
@@ -59,6 +60,20 @@ struct Convolution_Block : public Workblock_Module
 	Convolution_Module* conv = NULL;
 	Normalization_Module* norm = NULL;
 	Activation_Module* activate = NULL;
+
+	REFLECT_VKMOD()
+};
+
+
+struct Convolution_Gelu_Block : public Workblock_Module
+{
+	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
+	virtual reflect::input<vkBufferResource>& head_input() override;
+	virtual reflect::output<vkBufferResource>& tail_output() override;
+
+	Convolution_Module* conv       = NULL;
+	GroupNorm_Module*   group_norm = NULL;
+	Gelu_Module*        gelu       = NULL;
 
 	REFLECT_VKMOD()
 };

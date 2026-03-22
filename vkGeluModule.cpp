@@ -16,10 +16,10 @@ REFLECT_VKMOD_BEGIN(Gelu_Module)
 	ALIAS("GELU Layer")
 	INHERIT_FROM(Vulkan_Module)
 	//Forward Pass
-	REFLECT_VKMOD_MEMBER(input_tensor)
+	REFLECT_VKMOD_FEAT(input_tensor)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	//Backward Pass
-	REFLECT_VKMOD_MEMBER(grad_input)
+	REFLECT_VKMOD_GRAD(grad_input)
 	REFLECT_VKMOD_GRAD(grad_output)
 REFLECT_VKMOD_END()
 

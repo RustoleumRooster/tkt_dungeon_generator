@@ -5,6 +5,7 @@
 #include "vkUtilModules.h"
 #include "vkGroupNormModule.h"
 #include "vkSiluModule.h"
+#include "vkGeluModule.h"
 #include "vkSkipModule.h"
 #include "vkNNUpModule.h"
 #include "vkSigmoidModule.h"
@@ -124,6 +125,74 @@ reflect::input<vkBufferResource>& Convolution_Block::head_input()
 reflect::output<vkBufferResource>& Convolution_Block::tail_output()
 {
 	return activate->output_tensor;
+}
+
+
+//============================================================
+// Convolution_Gelu_Block
+//
+
+REFLECT_VKMOD_BEGIN(Convolution_Gelu_Block)
+	ALIAS("Convolution Gelu Block")
+	INHERIT_FROM(Workblock_Module)
+	//Forward Pass
+	REFLECT_VKMOD_FEAT(input_tensor)
+	REFLECT_VKMOD_FEAT(output_tensor)
+	//Backward Pass
+	REFLECT_VKMOD_GRAD(input_grad)
+	REFLECT_VKMOD_GRAD(output_grad)
+REFLECT_VKMOD_END()
+
+void Convolution_Gelu_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
+{
+	u32 N    = input_dimension.B;
+	u32 C_in = input_dimension.C;
+	u32 H    = input_dimension.H;
+	u32 W    = input_dimension.W;
+	u32 C_out = output_dimension.C;
+
+	conv = new Convolution_Module();
+	conv->pushconstants.k          = 4;
+	conv->pushconstants.s          = 2;
+	conv->pushconstants.p          = 1;
+	conv->pushconstants.img_size_in  = H;
+	conv->pushconstants.img_size_out = H / 2;
+	conv->pushconstants.c_in       = C_in;
+	conv->pushconstants.c_out      = C_out;
+	conv->input_dimensions         = { N, C_in,  H,     W     };
+	conv->output_dimensions        = { N, C_out, H / 2, W / 2 };
+
+	group_norm = new GroupNorm_Module();
+	group_norm->input_dimensions = { N, C_out, H / 2, W / 2 };
+	group_norm->pushconstants    = { N, C_out, H / 2, W / 2, 32 };
+
+	gelu = new Gelu_Module();
+	gelu->input_dimensions = { N, C_out, H / 2, W / 2 };
+	gelu->pushconstants    = { N, C_out, H / 2, W / 2 };
+
+	modules.push_back(conv);
+	modules.push_back(group_norm);
+	modules.push_back(gelu);
+
+	reflect::connect(&conv->output_tensor,       &group_norm->input_tensor);
+	reflect::connect(&group_norm->output_tensor, &gelu->input_tensor);
+
+	for (Vulkan_Module* mod : modules)
+	{
+		mod->depth = this->depth + 1;
+		mod->is_submodule = true;
+		append_list.push_back(mod);
+	}
+}
+
+reflect::input<vkBufferResource>& Convolution_Gelu_Block::head_input()
+{
+	return conv->input_tensor;
+}
+
+reflect::output<vkBufferResource>& Convolution_Gelu_Block::tail_output()
+{
+	return gelu->output_tensor;
 }
 
 

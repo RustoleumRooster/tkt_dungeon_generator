@@ -22,15 +22,15 @@ void Vulkan_Workflow::make_default_workflow()
 	Create_Tensor_Module* create_images = new Create_Tensor_Module();
 	create_images->dimensions = { 16,128,64,64 };
 
-	Convolution_Block* conv_block = new Convolution_Block();
+	Convolution_Gelu_Block* conv_block = new Convolution_Gelu_Block();
 	conv_block->input_dimension = { 16,128,64,64 };
 	conv_block->output_dimension = { 16,128,32,32 };
 
-	Convolution_Block* conv_block_2 = new Convolution_Block();
+	Convolution_Gelu_Block* conv_block_2 = new Convolution_Gelu_Block();
 	conv_block_2->input_dimension = { 16,128,32,32 };
 	conv_block_2->output_dimension = { 16,128,16,16 };
 
-	Convolution_Block* conv_block_3 = new Convolution_Block();
+	Convolution_Gelu_Block* conv_block_3 = new Convolution_Gelu_Block();
 	conv_block_3->input_dimension = { 16,128,16,16 };
 	conv_block_3->output_dimension = { 16,128,8,8 };
 
