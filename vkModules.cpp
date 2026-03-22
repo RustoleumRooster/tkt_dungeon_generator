@@ -193,34 +193,18 @@ void Vulkan_App::cleanup()
 			vk->log() << tD->name << " forward pass did not run\n";
 		}
 	}
-	bool UnusedResources = false;
+	cout << "Cleaning up...\n";
 	for (vkMemoryResource* res : resources)
 	{
 		if (res->status != RESOURCE_DESTROYED)
 		{
-			if (!UnusedResources)
-			{
-				UnusedResources = true;
-				cout << "Resources not consumed:\n";
-			}/*
-			reflect::TypeDescriptor_Struct* res_tD = res->GetDynamicReflection();
-			reflect::TypeDescriptor_Struct* res_owner_tD = res->owner->owner->GetDynamicReflection();
-			cout << "  " << res_owner_tD->name << "::" << res_tD->name << "\n";
 
-			for (reflect::input_type* in : res->consumers)
-			{
-				reflect::TypeDescriptor_Struct* tD = in->owner->GetDynamicReflection();
-				cout << "    -> " << tD->name << "\n";
-			}*/
 			res->status = RESOURCE_DESTROYED;
 			res->destroy(m_device->getDevice());
 		}
 	}
-	if (!UnusedResources)
-	{
-		cout << "All resources consumed\n";
-	}
-	cout << "Finished running workflow\n";
+
+	cout << "\nFinished running workflow\n";
 
 	m_DescriptorPool->cleanup();
 	m_device->cleanup();

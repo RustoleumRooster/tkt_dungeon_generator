@@ -115,11 +115,7 @@ void Vulkan_Workflow::make_default_workflow()
 
 	reflect::connect(&quantize->output_tensor, &res_block->input_tensor);
 	reflect::connect(&quantize->output_tensor, &res_block->head_input());
-
-	reflect::output<vkBufferResource>* in = dynamic_cast<reflect::output<vkBufferResource>*>(res_block->group_norm->input_tensor.src_output);
-
-	if (in)
-		reflect::connect(in, &res_block->skip->input_b);
+	reflect::connect(&quantize->output_tensor, &res_block->skip->input_b);
 
 
 	reflect::connect(&res_block->tail_output(), &up_block->input_tensor);
@@ -208,13 +204,17 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 			mod.X->forward_pass_complete = true;
 		}
 	}
-	/*
-	if (backward_pass_head)
+	for (int i = (int)Modules.size() - 1; i >= 0; i--)
 	{
-		if(backward_pass_head->ready_backward())
-			backward_pass_head->backward();
+		Vulkan_Module* mod = Modules[i].X;
+		if (mod->is_submodule == false)
+		{
+			assert(mod->ready_backward() && "Module not ready for backward...");
+			mod->backward();
+			mod->backward_pass_complete = true;
+		}
 	}
-	*/
+
 	vulkan->cleanup();
 
 }

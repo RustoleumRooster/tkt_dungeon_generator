@@ -376,5 +376,8 @@
     <None Include="quantize_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
+    <None Include="add_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>

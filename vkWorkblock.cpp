@@ -53,7 +53,7 @@ void Workblock_Module::initialize(Vulkan_App* vulkan)
 
 void Workblock_Module::forward()
 {
-	log() << GetDynamicReflection()->name << " running:\n";
+	log() << GetDynamicReflection()->name << " (forward) :\n";
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -67,6 +67,8 @@ void Workblock_Module::forward()
 
 void Workblock_Module::backward()
 {
+	log() << GetDynamicReflection()->name << " (backward) :\n";
+
 	for (int i= modules.size()-1; i>=0; i--)
 		modules[i]->backward();
 }
@@ -333,13 +335,16 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	u32 H = input_dimension.H;
 	u32 W = input_dimension.W;
 
-	group_norm = new GroupNorm_Module();
-	group_norm->input_dimensions = { N,C,H,W };
-	group_norm->pushconstants    = { N,C,H,W, 32 };
-
 	conv1 = new Convolution_Module();
 	conv1->input_dimensions  = { N,C,H,W };
 	conv1->output_dimensions = { N,C,H,W };
+	conv1->pushconstants.k = 3;
+	conv1->pushconstants.s = 1;
+	conv1->pushconstants.p = 1;
+
+	group_norm = new GroupNorm_Module();
+	group_norm->input_dimensions = { N,C,H,W };
+	group_norm->pushconstants = { N,C,H,W, 32 };
 
 	silu = new Silu_Module();
 	silu->input_dimensions = { N,C,H,W };
@@ -348,6 +353,9 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	conv2 = new Convolution_Module();
 	conv2->input_dimensions  = { N,C,H,W };
 	conv2->output_dimensions = { N,C,H,W };
+	conv2->pushconstants.k = 3;
+	conv2->pushconstants.s = 1;
+	conv2->pushconstants.p = 1;
 
 	skip = new Skip_Module();
 	skip->input_dimensions = { N,C,H,W };
@@ -361,8 +369,8 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	// add_grad must run LAST in backward (depends on skip and group_norm outputs),
 	// so insert it at index 0 — backward() iterates the modules vector in reverse.
 	modules.push_back(add_grad);
-	modules.push_back(group_norm);
 	modules.push_back(conv1);
+	modules.push_back(group_norm);
 	modules.push_back(silu);
 	modules.push_back(conv2);
 	modules.push_back(skip);
@@ -370,10 +378,9 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	// skip branch
 	//reflect::connect(&skip->output_tensor, &group_norm->input_tensor);
 
-	// forward pass
-	reflect::connect(&group_norm->output_tensor, &conv1->input_tensor);
-	reflect::connect(&conv1->output_tensor,      &silu->input_tensor);
-	reflect::connect(&silu->output_tensor,       &conv2->input_tensor);
+	reflect::connect(&conv1->output_tensor, &group_norm->input_tensor);
+	reflect::connect(&group_norm->output_tensor, &silu->input_tensor);
+	reflect::connect(&silu->output_tensor, &conv2->input_tensor);
 
 	// add skip to output
 	reflect::connect(&conv2->output_tensor, &skip->input_a);
@@ -384,10 +391,11 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	// add_grad sums both paths into the final upstream gradient
 	reflect::connect(&skip->grad_output_a,       &conv2->grad_input);
 	reflect::connect(&conv2->grad_output,        &silu->grad_input);
-	reflect::connect(&silu->grad_output,         &conv1->grad_input);
-	reflect::connect(&conv1->grad_output,        &group_norm->grad_input);
+	reflect::connect(&silu->grad_output,         &group_norm->grad_input);
+	reflect::connect(&group_norm->grad_output, &conv1->grad_input);
+
 	reflect::connect(&skip->grad_output_b,       &add_grad->grad_input_a);
-	reflect::connect(&group_norm->grad_output,   &add_grad->grad_input_b);
+	reflect::connect(&conv1->grad_output,   &add_grad->grad_input_b);
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -397,7 +405,7 @@ void ResBlock_Module::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	}
 }
 
-reflect::input<vkBufferResource>& ResBlock_Module::head_input()      { return group_norm->input_tensor; }
+reflect::input<vkBufferResource>& ResBlock_Module::head_input()      { return conv1->input_tensor; }
 reflect::output<vkBufferResource>& ResBlock_Module::tail_output()    { return skip->output; }
 reflect::input<vkBufferResource>& ResBlock_Module::gradient_input()  { return skip->grad_input; }
 reflect::output<vkBufferResource>& ResBlock_Module::gradient_output(){ return add_grad->grad_output; }

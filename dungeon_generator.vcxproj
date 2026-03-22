@@ -224,6 +224,7 @@
   <ItemGroup>
     <None Include="activate.comp" />
     <None Include="add.comp" />
+    <None Include="add_grad.comp" />
     <None Include="bce_grad.comp" />
     <None Include="bce_loss.comp" />
     <None Include="commit_loss.comp" />
