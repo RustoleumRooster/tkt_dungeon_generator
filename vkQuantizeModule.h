@@ -48,15 +48,22 @@ struct Quantize_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;
+	Pass bwd_pass;
 
 	virtual void setDimensions() override;
 	virtual void forward() override;
+	virtual void backward() override;
 
 	std::vector<f32> mapped_codebook;
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;
+	reflect::output<vkBufferResource>    indices_buffer;  // nearest codebook index per position, saved for backward
+	reflect::output<vkBufferResource>    loss_buffer;     // per-position quantization distance (commitment loss)
 	reflect::parameter<vkBufferResource> codebook;
+
+	reflect::input<vkBufferResource>     grad_input;      // dL/d_quantized_output from downstream
+	reflect::output<vkBufferResource>    grad_output;     // dL/d_encoder_output (straight-through)
 
 	REFLECT_VKMOD()
 };

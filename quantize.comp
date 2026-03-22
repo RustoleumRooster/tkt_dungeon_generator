@@ -1,11 +1,10 @@
 #version 450
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
-#extension GL_EXT_shader_atomic_float : enable
 
 layout(std430, binding = 0) readonly buffer Input
 {
-	float input_[];
+	float input_b[];
 };
 
 layout(std430, binding = 1) readonly buffer Codebook
@@ -15,19 +14,22 @@ layout(std430, binding = 1) readonly buffer Codebook
 
 layout(std430, binding = 2) writeonly buffer Output
 {
-	float output_[];
+	float output_b[];
 };
 
-/*
-layout(std430, binding = 3) writeonly buffer resultsBuffer
+layout(std430, binding = 3) writeonly buffer Indices
 {
-	vec3 results[];
+	uint indices[];
 };
-*/
+
+layout(std430, binding = 4) writeonly buffer LossBuffer
+{
+	float loss_b[];
+};
 
 layout(push_constant) uniform PushConstants {
 	uint n_vectors;
-} co;
+} pc;
 
 layout(local_size_x = 128) in;
 
@@ -52,35 +54,38 @@ void main()
 	}
 	barrier();
 
-	//each thread loads one channel
+	//each thread owns one channel
 	//
-	float q = input_[(N * 128 * H * W) + (id * H * W) + (h * W) + w];
+	float x = input_b[(N * 128 * H * W) + (id * H * W) + (h * W) + w];
 
-	//loop over each vector
+	//iterate over the codebook
 	//
-	for(int j=0; j<co.n_vectors; j++)
+	for(uint j=0; j<pc.n_vectors; j++)
 	{
 		//each thread computes an element-by-element squared difference
 		//
-		float r = codebook[j * 128 + id] - q;
+		float r = codebook[j * 128 + id] - x;
 		r = r * r;
 
-		//compute a sum and save if better
+		//compute a sum (reduction)
 		//
+		float s = subgroupAdd(r);
+
 		if(subgroupElect())
-			sg_partials[gl_SubgroupID] = subgroupAdd(r);
+			sg_partials[gl_SubgroupID] = s;
 
 		barrier();
 
+		float loss = 0.0;
+
 		if(id == 0)
 		{
-			float t = 0.0;
-			for(int i=0;i<4;i++)
-				t += sg_partials[i];
+			for(int i=0; i<4; i++)
+				loss += sg_partials[i];
 
-			if(t<best)
+			if(loss < best)
 			{
-				best = t;
+				best = loss;
 				ret = j;
 			}
 		}
@@ -88,6 +93,15 @@ void main()
 		barrier();
 	}
 
+	//one value per spatial position
+	if(id == 0)
+	{
+		indices[(N * H * W) + (h * W) + w] = ret;
+		loss_b[(N * H * W) + (h * W) + w] = best;
+	}
+
+	barrier();
+
 	// each thread writes its channel from the winning codebook vector
-	output_[(N * 128 * H * W) + (id * H * W) + (h * W) + w] = codebook[ret * 128 + id];
+	output_b[(N * 128 * H * W) + (id * H * W) + (h * W) + w] = codebook[ret * 128 + id];
 }

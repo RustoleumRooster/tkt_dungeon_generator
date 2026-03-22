@@ -220,7 +220,9 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 			if (m_tD->inherited_type == &reflect::output_type::Reflection)
 			{
 				reflect::output_type* out = (reflect::output_type*)m.get(mod);
-				VkDeviceSize sz = out->aligned_size(alignment);
+				VkDeviceSize sz = (m.flags & REFLECT_VKMOD_COMPONENT_UINT_TYPE)
+				                ? out->aligned_size<u32>(alignment)
+				                : out->aligned_size<f32>(alignment);
 
 				assert(sz > 0 && "plan_memory: output buffer has zero size");
 				assert(sz < device_local_total && "plan_memory: single buffer exceeds total device memory");
@@ -238,7 +240,7 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 			else if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
 			{
 				reflect::parameter_type* out = (reflect::parameter_type*)m.get(mod);
-				VkDeviceSize sz = out->aligned_size(alignment);
+				VkDeviceSize sz = out->aligned_size<f32>(alignment);
 
 				param_total += sz;
 			}
@@ -302,7 +304,9 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 			if (m_tD == &reflect::output<vkBufferResource>::Reflection)
 			{
 				reflect::output<vkBufferResource>* out = (reflect::output<vkBufferResource>*)m.get(mod);
-				VkDeviceSize sz = out->aligned_size(alignment);
+				VkDeviceSize sz = (m.flags & REFLECT_VKMOD_COMPONENT_UINT_TYPE)
+				                ? out->aligned_size<u32>(alignment)
+				                : out->aligned_size<f32>(alignment);
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
@@ -323,7 +327,7 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 			else if (m_tD == &reflect::parameter<vkBufferResource>::Reflection)
 			{
 				reflect::parameter<vkBufferResource>* p = (reflect::parameter<vkBufferResource>*)m.get(mod);
-				VkDeviceSize sz = p->aligned_size(alignment);
+				VkDeviceSize sz = p->aligned_size<f32>(alignment);
 
 				p->X = vulkan->create_buffer_slice(param_buffer,      param_t, sz);
 				p->Y = vulkan->create_buffer_slice(param_grad_buffer, param_t, sz);

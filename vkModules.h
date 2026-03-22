@@ -130,6 +130,8 @@ namespace reflect
 #define REFLECT_VKMOD_COMPONENT_GRAD 8
 #define REFLECT_VKMOD_COMPONENT_UNK 0
 
+#define REFLECT_VKMOD_COMPONENT_UINT_TYPE 16
+
 #define REFLECT_VKMOD_MEMBER(name) \
         typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
 //		if(backward_pass) typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_BACKWARD_PASS;
@@ -145,6 +147,9 @@ namespace reflect
 #define REFLECT_VKMOD_GRAD(name) \
 			typeDesc->members.push_back(reflect::Member{#name, offsetof(T, name), reflect::TypeResolver<decltype(T::name)>::get(),0xFF}); \
 			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_COMPONENT_GRAD;
+
+#define REFLECT_VKMOD_UINT_TYPE() \
+			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_COMPONENT_UINT_TYPE;
 
 //#define REFLECT_VKMOD_MEMBER_CREATE_MEMORY() \
 //			typeDesc->members[typeDesc->members.size()-1].flags |= REFLECT_VKMOD_MEMBER_FLAG_CREATE_MEMORY;
@@ -394,14 +399,16 @@ namespace reflect
 		virtual void signal() = 0;
 		virtual void push() = 0;
 
+		template<typename T = f32>
 		VkDeviceSize size() const
 		{
-			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(f32);
+			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(T);
 		}
 
+		template<typename T = f32>
 		VkDeviceSize aligned_size(VkDeviceSize alignment) const
 		{
-			VkDeviceSize s = size();
+			VkDeviceSize s = size<T>();
 			return (s + alignment - 1) & ~(alignment - 1);
 		}
 
@@ -442,7 +449,7 @@ namespace reflect
 		}
 
 		std::vector<u64> old_uids;	//not reflected
-		TY* X = NULL;						
+		TY* X = NULL;
 
 		virtual void signal() override;
 		virtual void push() override;
@@ -459,14 +466,16 @@ namespace reflect
 		bool ready = false;
 		bool grad_ready = false;
 
+		template<typename T = f32>
 		VkDeviceSize size() const
 		{
-			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(f32);
+			return (VkDeviceSize)dimensions.B * dimensions.C * dimensions.H * dimensions.W * sizeof(T);
 		}
 
+		template<typename T = f32>
 		VkDeviceSize aligned_size(VkDeviceSize alignment) const
 		{
-			VkDeviceSize s = size();
+			VkDeviceSize s = size<T>();
 			return (s + alignment - 1) & ~(alignment - 1);
 		}
 
