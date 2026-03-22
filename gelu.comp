@@ -1,0 +1,38 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer InputBuffer
+{
+	float input_b[];
+};
+
+layout(std430, binding = 1) writeonly buffer OutputBuffer
+{
+	float output_b[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+} pc;
+
+layout(local_size_x = 256) in;
+
+// GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+const float SQRT_2_OVER_PI = 0.7978845608;
+const float COEF            = 0.044715;
+
+void main()
+{
+	uint idx   = gl_GlobalInvocationID.x;
+	uint total = pc.n * pc.c * pc.h * pc.w;
+
+	if (idx >= total)
+		return;
+
+	float x       = input_b[idx];
+	float inner   = SQRT_2_OVER_PI * (x + COEF * x * x * x);
+	output_b[idx] = 0.5 * x * (1.0 + tanh(inner));
+}

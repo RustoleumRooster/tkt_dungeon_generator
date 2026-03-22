@@ -1,0 +1,52 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer InputBuffer
+{
+	float input_b[];
+};
+
+layout(std430, binding = 1) readonly buffer GradInput
+{
+	float grad_in[];
+};
+
+layout(std430, binding = 2) writeonly buffer GradOutput
+{
+	float grad_out[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint n;
+	uint c;
+	uint h;
+	uint w;
+} pc;
+
+layout(local_size_x = 256) in;
+
+// GELU approximation: f(x) = 0.5 * x * (1 + tanh(c * (x + 0.044715 * x^3)))
+// where c = sqrt(2/pi)
+//
+// f'(x) = 0.5 * (1 + tanh(inner))
+//        + 0.5 * x * (1 - tanh(inner)^2) * c * (1 + 3 * 0.044715 * x^2)
+const float SQRT_2_OVER_PI = 0.7978845608;
+const float COEF            = 0.044715;
+
+void main()
+{
+	uint idx   = gl_GlobalInvocationID.x;
+	uint total = pc.n * pc.c * pc.h * pc.w;
+
+	if (idx >= total)
+		return;
+
+	float x      = input_b[idx];
+	float inner  = SQRT_2_OVER_PI * (x + COEF * x * x * x);
+	float t      = tanh(inner);
+	float dt_dx  = SQRT_2_OVER_PI * (1.0 + 3.0 * COEF * x * x); // d(inner)/dx
+
+	float dgelu  = 0.5 * (1.0 + t) + 0.5 * x * (1.0 - t * t) * dt_dx;
+
+	grad_out[idx] = grad_in[idx] * dgelu;
+}

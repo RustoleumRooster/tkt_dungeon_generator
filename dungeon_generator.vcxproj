@@ -178,6 +178,7 @@
     <ClCompile Include="vkComputePipeline.cpp" />
     <ClCompile Include="vkDescriptors.cpp" />
     <ClCompile Include="vkDevice.cpp" />
+    <ClCompile Include="vkGeluModule.cpp" />
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkNNUpModule.cpp" />
@@ -210,6 +211,7 @@
     <ClInclude Include="vkComputePipeline.h" />
     <ClInclude Include="vkDescriptors.h" />
     <ClInclude Include="vkDevice.h" />
+    <ClInclude Include="vkGeluModule.h" />
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkNNUpModule.h" />
@@ -229,6 +231,8 @@
     <None Include="conv64.comp" />
     <None Include="conv_grad.comp" />
     <None Include="conv_grad_b.comp" />
+    <None Include="gelu.comp" />
+    <None Include="gelu_grad.comp" />
     <None Include="groupnorm.comp" />
     <None Include="groupnorm2.comp" />
     <None Include="groupnorm_grad_1.comp" />

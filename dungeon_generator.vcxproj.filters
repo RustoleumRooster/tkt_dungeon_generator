@@ -201,6 +201,9 @@
     <ClCompile Include="vkSkipModule.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkGeluModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vkBufferObject.h">
@@ -287,6 +290,9 @@
     <ClInclude Include="vkBCELossModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkGeluModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv128.comp">
@@ -356,6 +362,12 @@
       <Filter>Source Files\glsl</Filter>
     </None>
     <None Include="skip_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="gelu.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="gelu_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
   </ItemGroup>
