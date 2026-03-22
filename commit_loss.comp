@@ -1,0 +1,43 @@
+#version 450
+#extension GL_EXT_shader_atomic_float : enable
+
+layout(std430, binding = 0) readonly buffer LossBuffer
+{
+	float loss_b[];
+};
+
+layout(std430, binding = 1) writeonly buffer CommitLoss
+{
+	float commit_loss[];
+};
+
+layout(push_constant) uniform PushConstants {
+	uint n_elements;
+} pc;
+
+layout(local_size_x = 256) in;
+
+shared float s_sum[256];
+
+void main()
+{
+	uint gid = gl_GlobalInvocationID.x;
+	uint lid = gl_LocalInvocationID.x;
+
+	// each thread loads one element; out-of-bounds threads contribute 0
+	s_sum[lid] = (gid < pc.n_elements) ? loss_b[gid] : 0.0;
+	barrier();
+
+	// tree reduction within the workgroup
+	for (uint stride = 128; stride > 0; stride >>= 1)
+	{
+		if (lid < stride)
+			s_sum[lid] += s_sum[lid + stride];
+		barrier();
+	}
+
+	// thread 0 atomically adds the workgroup partial sum / n_elements
+	// dividing here means the final commit_loss[0] is the mean, not the sum
+	if (lid == 0)
+		atomicAdd(commit_loss[0], s_sum[0] / float(pc.n_elements));
+}

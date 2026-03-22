@@ -370,5 +370,11 @@
     <None Include="gelu_grad.comp">
       <Filter>Source Files\glsl</Filter>
     </None>
+    <None Include="commit_loss.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
+    <None Include="quantize_grad.comp">
+      <Filter>Source Files\glsl</Filter>
+    </None>
   </ItemGroup>
 </Project>

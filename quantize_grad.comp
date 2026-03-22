@@ -1,0 +1,47 @@
+#version 450
+
+layout(std430, binding = 0) readonly buffer GradInput
+{
+	float grad_input[];
+};
+
+layout(std430, binding = 1) readonly buffer InputTensor
+{
+	float input_tensor[];
+};
+
+layout(std430, binding = 2) readonly buffer OutputTensor
+{
+	float output_tensor[];
+};
+
+layout(std430, binding = 3) writeonly buffer GradOutput
+{
+	float grad_output[];
+};
+
+layout(push_constant) uniform PushConstants {
+	uint  n_elements;  // B*H*W spatial positions (normalization factor)
+	uint  n_channels;  // C
+	float beta;        // commitment loss weight
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+
+	if (idx >= pc.n_elements * pc.n_channels)
+		return;
+
+	float ze = input_tensor[idx];
+	float e  = output_tensor[idx];
+
+	// Straight-through estimator: pass upstream gradient unchanged through quantization
+	// Commitment gradient: penalize encoder for drifting from its chosen codebook vector
+	//   d/dz_e [ (1/N) * sum_pos( ||z_e - e||^2 ) ] = 2 * (z_e - e) / N
+	float commit_grad = 2.0 * pc.beta * (ze - e) / float(pc.n_elements);
+
+	grad_output[idx] = grad_input[idx] + commit_grad;
+}

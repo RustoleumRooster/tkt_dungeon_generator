@@ -35,6 +35,30 @@ struct Quantize_Module : public Vulkan_Module
 		1 //n_vectors
 	};
 
+	struct commit_pushconstant_struct
+	{
+		u32 n_elements;
+	};
+
+	commit_pushconstant_struct commit_pushconstants
+	{
+		1 //n_elements
+	};
+
+	struct bwd_pushconstant_struct
+	{
+		u32   n_elements;  // B*H*W spatial positions (normalization factor for commitment loss)
+		u32   n_channels;  // C
+		float beta;        // commitment loss weight
+	};
+
+	bwd_pushconstant_struct bwd_pushconstants
+	{
+		1024, //n_elements
+		128,  //n_channels
+		0.25f //beta
+	};
+
 	struct Pass
 	{
 		VkPipelineLayout                          pipelineLayout;
@@ -48,6 +72,7 @@ struct Quantize_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;
+	Pass commit_loss_pass;
 	Pass bwd_pass;
 
 	virtual void setDimensions() override;
@@ -60,6 +85,7 @@ struct Quantize_Module : public Vulkan_Module
 	reflect::output<vkBufferResource>    output_tensor;
 	reflect::output<vkBufferResource>    indices_buffer;  // nearest codebook index per position, saved for backward
 	reflect::output<vkBufferResource>    loss_buffer;     // per-position quantization distance (commitment loss)
+	reflect::output<vkBufferResource>    commit_loss;     // scalar mean commitment loss
 	reflect::parameter<vkBufferResource> codebook;
 
 	reflect::input<vkBufferResource>     grad_input;      // dL/d_quantized_output from downstream

@@ -32,6 +32,7 @@ REFLECT_VKMOD_BEGIN(Quantize_Module)
 	REFLECT_VKMOD_FEAT(indices_buffer)
 		REFLECT_VKMOD_UINT_TYPE()
 	REFLECT_VKMOD_FEAT(loss_buffer)
+	REFLECT_VKMOD_FEAT(commit_loss) //single scalar value
 	REFLECT_VKMOD_PARAM(codebook)
 	//Backward Pass (gradients)
 	REFLECT_VKMOD_GRAD(grad_input)
@@ -75,7 +76,12 @@ void Quantize_Module::setDimensions()
 	indices_buffer.dimensions = { input_dimensions.B, 1, input_dimensions.H, input_dimensions.W };
 	// one f32 commitment distance per spatial position per batch element
 	loss_buffer.dimensions    = { input_dimensions.B, 1, input_dimensions.H, input_dimensions.W };
-	grad_output.dimensions    = input_dimensions;
+	// scalar mean over all positions
+	commit_loss.dimensions    = { 1, 1, 1, 1 };
+	commit_pushconstants.n_elements  = input_dimensions.B * input_dimensions.H * input_dimensions.W;
+	bwd_pushconstants.n_elements     = input_dimensions.B * input_dimensions.H * input_dimensions.W;
+	bwd_pushconstants.n_channels     = input_dimensions.C;
+	grad_output.dimensions           = input_dimensions;
 	pushconstants.n_vectors  = codebook_size.H;
 }
 
@@ -136,24 +142,77 @@ void Quantize_Module::forward()
 	indices_buffer.ready = true;
 	loss_buffer.ready    = true;
 	fwd_pass.cleanup(m_device->getDevice());
+
+	// Commit Loss Pass: mean reduction over loss_buffer -> commit_loss scalar
+	// bindings: loss_buffer(0), commit_loss(1)
+	commit_loss_pass.bindings.resize(2);
+	commit_loss_pass.bindings[0] = loss_buffer.X->getDescriptorSetLayout(0);
+	commit_loss_pass.bindings[1] = commit_loss.X->getDescriptorSetLayout(1);
+	commit_loss_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, commit_loss_pass.bindings);
+
+	VkPushConstantRange commit_push_constant;
+	commit_push_constant.offset     = 0;
+	commit_push_constant.size       = sizeof(commit_pushconstant_struct);
+	commit_push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	commit_loss_pass.createPipeline(m_device, "shaders/commit_loss.spv", commit_push_constant);
+
+	{
+		MyDescriptorWriter writer(*commit_loss_pass.descriptorSetLayout, *m_DescriptorPool);
+		commit_loss_pass.descriptorSets.resize(1);
+		writer.writeBuffer(0, loss_buffer.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, commit_loss.X->getDescriptorBufferInfo());
+		writer.build(commit_loss_pass.descriptorSets[0]);
+	}
+
+	{
+		VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+
+		// zero the accumulator before dispatching
+		vkCmdFillBuffer(commandBuffer, commit_loss.X->Buffer, 0, VK_WHOLE_SIZE, 0);
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+			commit_loss_pass.pipeline->getPipeline());
+
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+			commit_loss_pass.pipelineLayout, 0, 1, &commit_loss_pass.descriptorSets[0], 0, 0);
+
+		uint32_t n_WorkGroups_x = (commit_pushconstants.n_elements + 255) / 256;
+
+		log() << "Commit loss: " << n_WorkGroups_x << " workgroups\n";
+
+		vkCmdPushConstants(commandBuffer, commit_loss_pass.pipelineLayout,
+			VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(commit_pushconstant_struct), &commit_pushconstants);
+
+		vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
+
+		m_device->endSingleTimeCommands(commandBuffer);
+	}
+
+	m_DescriptorPool->freeDescriptorsSets(commit_loss_pass.descriptorSets);
+
+	vkDeviceWaitIdle(m_device->getDevice());
+
+	commit_loss.ready = true;
+	commit_loss_pass.cleanup(m_device->getDevice());
 }
 
 void Quantize_Module::backward()
 {
-	// bindings: grad_input(0)    — dL/d_quantized_output from downstream
-	//           indices_buffer(1) — nearest codebook index per position (saved from forward)
-	//           grad_output(2)   — dL/d_encoder_output (straight-through: copy of grad_input)
-	//           codebook.Y(3)    — codebook weight gradients (accumulate at selected index)
+	// bindings: grad_input(0)   — dL/d_quantized from downstream
+	//           input_tensor(1) — z_e, encoder output (for commitment gradient)
+	//           output_tensor(2)— e, quantized output  (for commitment gradient)
+	//           grad_output(3)  — dL/dz_e = STE + 2*beta*(z_e - e)/n_elements
 	bwd_pass.bindings.resize(4);
 	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = indices_buffer.X->getDescriptorSetLayout(1);
-	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
-	bwd_pass.bindings[3] = codebook.Y->getDescriptorSetLayout(3);
+	bwd_pass.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
+	bwd_pass.bindings[3] = grad_output.X->getDescriptorSetLayout(3);
 	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
 
 	VkPushConstantRange push_constant;
 	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
+	push_constant.size       = sizeof(bwd_pushconstant_struct);
 	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 	bwd_pass.createPipeline(m_device, "shaders/quantize_grad.spv", push_constant);
@@ -164,9 +223,9 @@ void Quantize_Module::backward()
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
 		writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
-		writer.writeBuffer(1, indices_buffer.X->getDescriptorBufferInfo());
-		writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
-		writer.writeBuffer(3, codebook.Y->getDescriptorBufferInfo());
+		writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, output_tensor.X->getDescriptorBufferInfo());
+		writer.writeBuffer(3, grad_output.X->getDescriptorBufferInfo());
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
@@ -178,12 +237,13 @@ void Quantize_Module::backward()
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	uint32_t n_WorkGroups_x = input_dimensions.B * input_dimensions.H * input_dimensions.W;
+	uint32_t total_elements  = bwd_pushconstants.n_elements * bwd_pushconstants.n_channels;
+	uint32_t n_WorkGroups_x  = (total_elements + 255) / 256;
 
 	log() << "Quantize backward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
-		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bwd_pushconstant_struct), &bwd_pushconstants);
 
 	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
