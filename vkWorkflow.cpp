@@ -141,6 +141,45 @@ void Vulkan_Workflow::make_default_workflow()
 	reflect::connect(&final_block->tail_output(), &bce_loss->predictions);
 	reflect::connect(&ground_truth->output_tensor, &bce_loss->ground_truth);
 
+	//=====================================================
+	// Backward Pass
+	//
+	// Pattern: each block gets two connects from the upstream gradient output —
+	//   one to the workblock-level input_grad (satisfies plan_memory pass 3 assert)
+	//   one to gradient_input() (the actual sub-module entry point for backward compute)
+	//
+
+	// Loss → Decoder
+	reflect::connect(&bce_loss->gradient_out,         &final_block->input_grad);
+	reflect::connect(&bce_loss->gradient_out,         &final_block->gradient_input());
+
+	reflect::connect(&final_block->gradient_output(),  &up_block_3->input_grad);
+	reflect::connect(&final_block->gradient_output(),  &up_block_3->gradient_input());
+
+	reflect::connect(&up_block_3->gradient_output(),   &up_block_2->input_grad);
+	reflect::connect(&up_block_3->gradient_output(),   &up_block_2->gradient_input());
+
+	reflect::connect(&up_block_2->gradient_output(),   &up_block->input_grad);
+	reflect::connect(&up_block_2->gradient_output(),   &up_block->gradient_input());
+
+	reflect::connect(&up_block->gradient_output(),     &res_block->input_grad);
+	reflect::connect(&up_block->gradient_output(),     &res_block->gradient_input());
+
+	// Decoder → Quantize
+	// res_block.gradient_output() = add_grad.grad_output
+	//   = skip.grad_output_b (identity path) + group_norm.grad_output (conv path)
+	reflect::connect(&res_block->gradient_output(),    &quantize->grad_input);
+
+	// Quantize → Encoder
+	reflect::connect(&quantize->grad_output,           &conv_block_3->input_grad);
+	reflect::connect(&quantize->grad_output,           &conv_block_3->gradient_input());
+
+	reflect::connect(&conv_block_3->gradient_output(), &conv_block_2->input_grad);
+	reflect::connect(&conv_block_3->gradient_output(), &conv_block_2->gradient_input());
+
+	reflect::connect(&conv_block_2->gradient_output(), &conv_block->input_grad);
+	reflect::connect(&conv_block_2->gradient_output(), &conv_block->gradient_input());
+
 	items.clear();
 	for (VkMod_Reference& ref : Modules)
 		items.push_back(ref.X);
@@ -362,6 +401,20 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				in->X = src->X;
 			}
+			else if (m_tD->inherited_type == &reflect::input_type::Reflection &&
+				(m.flags & REFLECT_VKMOD_COMPONENT_GRAD))
+			{
+				reflect::input<vkBufferResource>* in = (reflect::input<vkBufferResource>*)m.get(mod);
+
+				assert(in->src_output != nullptr && "plan_memory pass 3: input gradient not connected");
+
+				reflect::output<vkBufferResource>* src = (reflect::output<vkBufferResource>*)in->src_output;
+
+				assert(src->X != nullptr && "plan_memory pass 3: gradient src_output has no buffer");
+
+				in->X = src->X;
+			}
 		}
+
 	}
 }

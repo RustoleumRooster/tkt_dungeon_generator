@@ -16,6 +16,7 @@ struct GroupNorm_Module;
 struct Silu_Module;
 struct Gelu_Module;
 struct Skip_Module;
+struct Add_Grad_Module;
 struct NNUp_Module;
 struct Sigmoid_Module;
 
@@ -70,6 +71,8 @@ struct Convolution_Gelu_Block : public Workblock_Module
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
+	virtual reflect::input<vkBufferResource>& gradient_input() override;
+	virtual reflect::output<vkBufferResource>& gradient_output() override;
 
 	Convolution_Module* conv       = NULL;
 	GroupNorm_Module*   group_norm = NULL;
@@ -84,6 +87,8 @@ struct FinalBlock_Module : public Workblock_Module
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
+	virtual reflect::input<vkBufferResource>& gradient_input() override;
+	virtual reflect::output<vkBufferResource>& gradient_output() override;
 
 	Convolution_Module* conv		= NULL;
 	Sigmoid_Module*     sigmoid		= NULL;
@@ -97,6 +102,8 @@ struct UpscaleBlock_Module : public Workblock_Module
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
+	virtual reflect::input<vkBufferResource>& gradient_input() override;
+	virtual reflect::output<vkBufferResource>& gradient_output() override;
 
 	NNUp_Module*          nn_up       = NULL;
 	GroupNorm_Module*     group_norm  = NULL;
@@ -112,12 +119,15 @@ struct ResBlock_Module : public Workblock_Module
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) override;
 	virtual reflect::input<vkBufferResource>& head_input() override;
 	virtual reflect::output<vkBufferResource>& tail_output() override;
+	virtual reflect::input<vkBufferResource>& gradient_input() override;
+	virtual reflect::output<vkBufferResource>& gradient_output() override;
 
-	Skip_Module*          skip        = NULL;
-	GroupNorm_Module*     group_norm  = NULL;
-	Convolution_Module*   conv1 = NULL;
-	Silu_Module*          silu  = NULL;
-	Convolution_Module*   conv2 = NULL;
+	Skip_Module*          skip      = NULL;
+	Add_Grad_Module*      add_grad  = NULL;
+	GroupNorm_Module*     group_norm = NULL;
+	Convolution_Module*   conv1     = NULL;
+	Silu_Module*          silu      = NULL;
+	Convolution_Module*   conv2     = NULL;
 
 	REFLECT_VKMOD()
 };

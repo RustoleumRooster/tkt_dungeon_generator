@@ -58,4 +58,51 @@ struct Skip_Module : public Vulkan_Module
 	REFLECT_VKMOD()
 };
 
+
+//============================================================
+// Add_Grad Module
+// Backward-pass mirror of Skip_Module.
+// Receives two gradient inputs and outputs their element-wise sum.
+//
+
+struct Add_Grad_Module : public Vulkan_Module
+{
+	TensorDimension input_dimensions{ 16,128,8,8 };
+
+	Add_Grad_Module()
+	{
+		set_ptrs();
+	}
+
+	struct pushconstant_struct
+	{
+		u32 n_elements;
+	};
+
+	pushconstant_struct pushconstants{ 16*128*8*8 };
+
+	struct Pass
+	{
+		VkPipelineLayout                          pipelineLayout;
+		MyDescriptorSetLayout*                    descriptorSetLayout = NULL;
+		ComputePipeline*                          pipeline            = NULL;
+		std::vector<VkDescriptorSet>              descriptorSets;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		void createPipeline(MyDevice*, const char* spv, VkPushConstantRange);
+		void cleanup(VkDevice);
+	};
+
+	Pass bwd_pass;
+
+	void setDimensions();
+	void backward();
+
+	reflect::input<vkBufferResource>  grad_input_a;
+	reflect::input<vkBufferResource>  grad_input_b;
+	reflect::output<vkBufferResource> grad_output;
+
+	REFLECT_VKMOD()
+};
+
 #endif

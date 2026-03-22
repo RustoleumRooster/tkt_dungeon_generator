@@ -12,6 +12,14 @@ using namespace std;
 // Skip (Add) Module
 //
 
+REFLECT_VKMOD_BEGIN(Add_Grad_Module)
+	ALIAS("Add Grad")
+	INHERIT_FROM(Vulkan_Module)
+	REFLECT_VKMOD_GRAD(grad_input_a)
+	REFLECT_VKMOD_GRAD(grad_input_b)
+	REFLECT_VKMOD_GRAD(grad_output)
+REFLECT_VKMOD_END()
+
 REFLECT_VKMOD_BEGIN(Skip_Module)
 	ALIAS("Skip Module")
 	INHERIT_FROM(Vulkan_Module)
@@ -157,6 +165,91 @@ void Skip_Module::backward()
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
 
 	log() << "Skip backward: " << n_WorkGroups_x << " workgroups\n";
+
+	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+
+	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
+
+	m_device->endSingleTimeCommands(commandBuffer);
+
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
+
+	vkDeviceWaitIdle(m_device->getDevice());
+
+	bwd_pass.cleanup(m_device->getDevice());
+}
+
+//============================================================
+// Add_Grad Module
+//
+
+void Add_Grad_Module::Pass::createPipeline(MyDevice* device, const char* spv,
+                                           VkPushConstantRange pushconstant)
+{
+	VkPipelineLayoutCreateInfo info{};
+	info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	info.setLayoutCount         = 1;
+	info.pSetLayouts            = &descriptorSetLayout->getDescriptorSetLayout();
+	info.pPushConstantRanges    = &pushconstant;
+	info.pushConstantRangeCount = 1;
+
+	vkCreatePipelineLayout(device->getDevice(), &info, nullptr, &pipelineLayout);
+	pipeline = new ComputePipeline(device, spv, pipelineLayout);
+}
+
+void Add_Grad_Module::Pass::cleanup(VkDevice device)
+{
+	descriptorSetLayout->cleanup();
+	pipeline->cleanup();
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+}
+
+void Add_Grad_Module::setDimensions()
+{
+	grad_output.dimensions   = input_dimensions;
+	pushconstants.n_elements = input_dimensions.B * input_dimensions.C *
+	                           input_dimensions.H * input_dimensions.W;
+}
+
+void Add_Grad_Module::backward()
+{
+	// bindings: grad_input_a(0), grad_input_b(1), grad_output(2)
+	bwd_pass.bindings.resize(3);
+	bwd_pass.bindings[0] = grad_input_a.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = grad_input_b.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	VkPushConstantRange push_constant;
+	push_constant.offset     = 0;
+	push_constant.size       = sizeof(pushconstant_struct);
+	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	bwd_pass.createPipeline(m_device, "shaders/add_grad.spv", push_constant);
+
+	grad_output.ready = true;
+
+	{
+		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
+		bwd_pass.descriptorSets.resize(1);
+		writer.writeBuffer(0, grad_input_a.X->getDescriptorBufferInfo());
+		writer.writeBuffer(1, grad_input_b.X->getDescriptorBufferInfo());
+		writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
+		writer.build(bwd_pass.descriptorSets[0]);
+	}
+
+	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass.pipeline->getPipeline());
+
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
+
+	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
+
+	log() << "Add_Grad backward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
