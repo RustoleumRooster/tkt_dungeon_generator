@@ -1,0 +1,39 @@
+#version 450
+
+layout(std430, binding = 0) buffer Params    { float params[]; };
+layout(std430, binding = 1) readonly buffer Grads { float grads[];  };
+layout(std430, binding = 2) buffer M         { float m[];      };
+layout(std430, binding = 3) buffer V         { float v[];      };
+
+layout(push_constant) uniform PushConstants {
+	float lr;
+	float B1_t;      // beta1^t  (bias-correction term, updated externally each step)
+	float B2_t;      // beta2^t
+	uint  n_elements;
+} pc;
+
+const float B1  = 0.9f;
+const float B2  = 0.999f;
+const float eps = 1e-8f;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx = gl_GlobalInvocationID.x;
+	if (idx >= pc.n_elements)
+		return;
+
+	float g  = grads[idx];
+
+	float mi = B1 * m[idx] + (1.0 - B1) * g;
+	float vi = B2 * v[idx] + (1.0 - B2) * g * g;
+
+	m[idx] = mi;
+	v[idx] = vi;
+
+	float m_hat = mi / (1.0 - pc.B1_t);
+	float v_hat = vi / (1.0 - pc.B2_t);
+
+	params[idx] -= pc.lr * m_hat / (sqrt(v_hat) + eps);
+}

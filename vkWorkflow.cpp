@@ -4,6 +4,7 @@
 #include "vkQuantizeModule.h"
 #include "vkWorkblock.h"
 #include "vkBCELossModule.h"
+#include "vkOptimizationModule.h"
 #include <vulkan/vulkan.h>
 #include "vkGroupNormModule.h"
 #include "vkSkipModule.h"
@@ -64,6 +65,11 @@ void Vulkan_Workflow::make_default_workflow()
 	BCE_Loss_Module* bce_loss = new BCE_Loss_Module();
 	bce_loss->input_dimensions = { 16,1,64,64 };
 
+	optimizer = new Optimization_Module();
+
+	// Optimizer goes first so the reverse backward loop runs it last,
+	// after all gradients have been accumulated.
+	Modules.push_back(VkMod_Reference{ optimizer });
 	Modules.push_back(VkMod_Reference{ create_images });
 	Modules.push_back(VkMod_Reference{ conv_block });
 	Modules.push_back(VkMod_Reference{ conv_block_2 });
@@ -194,6 +200,14 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 
 	plan_memory(vulkan);
 
+	if (optimizer && param_total_bytes > 0)
+	{
+		optimizer->params_buf             = param_buffer;
+		optimizer->grads_buf              = param_grad_buffer;
+		optimizer->m_buf                  = param_m_buffer;
+		optimizer->v_buf                  = param_v_buffer;
+		optimizer->pushconstants.n_elements = (u32)(param_total_bytes / sizeof(float));
+	}
 
 	for (VkMod_Reference& mod : Modules)
 	{
@@ -286,17 +300,20 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 		}
 	}
 
-	VkDeviceSize grand_total = feature_total + param_total*2 + grad_total + other_total;
+	param_total_bytes = param_total;
+	VkDeviceSize grand_total = feature_total + param_total*4 + grad_total + other_total;
 	assert(grand_total <= (device_local_total * 9 / 10) &&
 	       "plan_memory: total allocation exceeds 90% of device-local memory");
 
 	std::cout << "  Feature maps : " << mb(feature_total) << " MB\n";
 	std::cout << "  Parameters   : " << mb(param_total)   << " MB\n";
 	std::cout << "  Param Grads  : " << mb(param_total)   << " MB\n";
+	std::cout << "  Param M (1st): " << mb(param_total)   << " MB\n";
+	std::cout << "  Param V (2nd): " << mb(param_total)   << " MB\n";
 	std::cout << "  Grad (tmp)   : " << mb(grad_total)    << " MB\n";
 	std::cout << "  Other        : " << mb(other_total)   << " MB\n";
 	std::cout << "  Total        : " << mb(grand_total)   << " MB  ("
-	          << mb(device_local_total * 9 / 10) << " MB budget)\n";
+	          << mb(device_local_total * 9 / 10) << " MB budget)\n\n";
 
 	auto usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 	             VK_BUFFER_USAGE_TRANSFER_SRC_BIT   |
@@ -305,24 +322,21 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	if (feature_total > 0)
 	{
 		feature_buffer = vulkan->create_buffer(feature_total, usage);
-		std::cout << "  feature_buffer created\n";
 	}
 	if (param_total > 0)
 	{
 		param_buffer = vulkan->create_buffer(param_total, usage);
-		std::cout << "  param_buffer created\n";
 		param_grad_buffer = vulkan->create_buffer(param_total, usage);
-		std::cout << "  param_grad_buffer created\n";
+		param_m_buffer = vulkan->create_buffer(param_total, usage);
+		param_v_buffer = vulkan->create_buffer(param_total, usage);
 	}
 	if (grad_total > 0)
 	{
 		grad_tmp_buffer = vulkan->create_buffer(grad_total, usage);
-		std::cout << "  grad_buffer created\n";
 	}
 	if (other_total > 0)
 	{
 		other_buffer = vulkan->create_buffer(other_total, usage);
-		std::cout << "  other_buffer created\n";
 	}
 
 	VkDeviceSize feature_t = 0;
@@ -370,6 +384,8 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				p->X = vulkan->create_buffer_slice(param_buffer,      param_t, sz);
 				p->Y = vulkan->create_buffer_slice(param_grad_buffer, param_t, sz);
+				p->M = vulkan->create_buffer_slice(param_m_buffer,    param_t, sz);
+				p->V = vulkan->create_buffer_slice(param_v_buffer,    param_t, sz);
 
 				param_t += sz;
 			}

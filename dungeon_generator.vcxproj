@@ -182,6 +182,7 @@
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkNNUpModule.cpp" />
+    <ClCompile Include="vkOptimizationModule.cpp" />
     <ClCompile Include="vkQuantizeModule.cpp" />
     <ClCompile Include="vkSigmoidModule.cpp" />
     <ClCompile Include="vkSiluModule.cpp" />
@@ -215,6 +216,7 @@
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkNNUpModule.h" />
+    <ClInclude Include="vkOptimizationModule.h" />
     <ClInclude Include="vkQuantizeModule.h" />
     <ClInclude Include="vkSigmoidModule.h" />
     <ClInclude Include="vkSiluModule.h" />
@@ -223,6 +225,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="activate.comp" />
+    <None Include="adam.comp" />
     <None Include="add.comp" />
     <None Include="add_grad.comp" />
     <None Include="bce_grad.comp" />

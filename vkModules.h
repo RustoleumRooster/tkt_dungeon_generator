@@ -489,8 +489,10 @@ namespace reflect
 		{
 		};
 
-		TY* X = NULL;
-		TY* Y = NULL;
+		TY* X = NULL;		//Parameter
+		TY* Y = NULL;		//Gradient
+		TY* M = NULL;		//First Moment
+		TY* V = NULL;		//Second Moment
 
 		REFLECT_CUSTOM_STRUCT()
 	};
@@ -742,6 +744,8 @@ Vulkan_Module* Vulkan_App::create_module()
 	return module;
 }
 
+struct Optimization_Module;
+
 class Vulkan_Workflow : public tkt_set<Vulkan_Module>
 {
 public:
@@ -756,11 +760,16 @@ public:
 	void save();
 	void load();
 
-	vkBufferResource* feature_buffer = NULL;
-	vkBufferResource* param_buffer   = NULL;
-	vkBufferResource* param_grad_buffer   = NULL;
-	vkBufferResource* grad_tmp_buffer    = NULL;
-	vkBufferResource* other_buffer   = NULL;
+	vkBufferResource* feature_buffer    = NULL;
+	vkBufferResource* param_buffer      = NULL;
+	vkBufferResource* param_grad_buffer = NULL;
+	vkBufferResource* param_m_buffer    = NULL;
+	vkBufferResource* param_v_buffer    = NULL;
+	vkBufferResource* grad_tmp_buffer   = NULL;
+	vkBufferResource* other_buffer      = NULL;
+
+	VkDeviceSize       param_total_bytes = 0;
+	Optimization_Module* optimizer       = NULL;
 
 	Vulkan_Module* get_module_by_uid(u64 uid)
 	{

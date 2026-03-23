@@ -1,10 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
     <Filter Include="Header Files">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
@@ -19,190 +15,197 @@
     <Filter Include="Header Files\reflection">
       <UniqueIdentifier>{1ef89e32-4f2f-47d5-8145-669c9a82c94e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\gui">
-      <UniqueIdentifier>{6714f239-fce3-40d2-a57b-ebf1366d7953}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\reflection">
-      <UniqueIdentifier>{462387cd-552c-428e-bdc3-3af71d2b20fd}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\agg">
       <UniqueIdentifier>{12c0f201-5268-425e-b9e0-d49ef1f89f5d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\agg">
+    <Filter Include="Resource Files\Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files\Source Files\gui">
+      <UniqueIdentifier>{6714f239-fce3-40d2-a57b-ebf1366d7953}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Source Files\reflection">
+      <UniqueIdentifier>{462387cd-552c-428e-bdc3-3af71d2b20fd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Source Files\agg">
       <UniqueIdentifier>{6020443c-da5f-4b8a-b30a-dfea72f0dd2c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\glsl">
+    <Filter Include="Resource Files\Source Files\glsl">
       <UniqueIdentifier>{a37fc35b-04b4-4dd2-8375-1ad035d637c0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkBufferObject.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkComputePipeline.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkDescriptors.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkDevice.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkModules.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ex_gui_elements.cpp">
       <Filter>Header Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="CameraPanel.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="CameraPanel2D.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="CGUIButton.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="CGUISkin.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="edit_classes.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="edit_env.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="GUI_tools.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="scrollbar2.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="Refl_Primitives.cpp">
-      <Filter>Source Files\reflection</Filter>
+      <Filter>Resource Files\Source Files\reflection</Filter>
     </ClCompile>
     <ClCompile Include="tree_struct.cpp">
-      <Filter>Source Files\reflection</Filter>
+      <Filter>Resource Files\Source Files\reflection</Filter>
     </ClCompile>
     <ClCompile Include="fonts.cpp">
-      <Filter>Source Files\gui</Filter>
+      <Filter>Resource Files\Source Files\gui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\font_win32_tt\agg_font_win32_tt.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_arc.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_arrowhead.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_bezier_arc.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_bspline.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_color_rgba.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_curves.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_embedded_raster_fonts.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_gsv_text.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_image_filters.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_line_aa_basics.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_line_profile_aa.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_rounded_rect.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_sqrt_tables.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_affine.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_double_path.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_single_path.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_trans_warp_magnifier.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_bspline.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_contour.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_dash.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_markers_term.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_smooth_poly1.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vcgen_stroke.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_clip_polygon.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_clip_polyline.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\Documents\Visual Studio 2022\Projects\agg\agg-2.6\agg-src\src\agg_vpgen_segmentator.cpp">
-      <Filter>Source Files\agg</Filter>
+      <Filter>Resource Files\Source Files\agg</Filter>
     </ClCompile>
     <ClCompile Include="vkUtilModules.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkWorkflow.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkQuantizeModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkWorkblock.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkGroupNormModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkSiluModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkNNUpModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkSigmoidModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkBCELossModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkSkipModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vkGeluModule.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkOptimizationModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -293,91 +296,97 @@
     <ClInclude Include="vkGeluModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkOptimizationModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="conv128.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="mean_var.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="quantize.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="activate.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm2.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="silu.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="add.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="NN_up.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="conv32.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="conv64.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="sigmoid.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="bce_loss.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="bce_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="sigmoid_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="conv_grad_b.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm_grad_2.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="conv_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm_grad_3.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="groupnorm_grad_1.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="NN_up_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="silu_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="skip_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="gelu.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="gelu_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="commit_loss.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="quantize_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
     <None Include="add_grad.comp">
-      <Filter>Source Files\glsl</Filter>
+      <Filter>Resource Files\Source Files\glsl</Filter>
+    </None>
+    <None Include="adam.comp">
+      <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
   </ItemGroup>
 </Project>
