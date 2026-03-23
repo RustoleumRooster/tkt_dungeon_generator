@@ -210,6 +210,31 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 	}
 
 	for (VkMod_Reference& mod : Modules)
+		mod.X->initialize_parameters();
+
+	// Warn about any reflected parameters that were not initialized.
+	for (VkMod_Reference& ref : Modules)
+	{
+		Vulkan_Module* mod = ref.X;
+		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
+		if (!td) continue;
+
+		for (reflect::Member& m : td->members)
+		{
+			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+			if (!m_tD) continue;
+
+			if (m_tD->inherited_type == &reflect::parameter_type::Reflection)
+			{
+				reflect::parameter_type* p = (reflect::parameter_type*)m.get(mod);
+				if (!p->initialized)
+					std::cout << "[WARNING] Parameter '" << m.name
+					          << "' on module '" << td->name << "' was not initialized.\n";
+			}
+		}
+	}
+
+	for (VkMod_Reference& mod : Modules)
 	{
 		if (mod.X->is_submodule == false)
 		{
@@ -301,7 +326,7 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	}
 
 	param_total_bytes = param_total;
-	VkDeviceSize grand_total = feature_total + param_total*4 + grad_total + other_total;
+	VkDeviceSize grand_total = feature_total + param_total*4 + grad_total*2 + other_total;
 	assert(grand_total <= (device_local_total * 9 / 10) &&
 	       "plan_memory: total allocation exceeds 90% of device-local memory");
 
@@ -310,7 +335,8 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	std::cout << "  Param Grads  : " << mb(param_total)   << " MB\n";
 	std::cout << "  Param M (1st): " << mb(param_total)   << " MB\n";
 	std::cout << "  Param V (2nd): " << mb(param_total)   << " MB\n";
-	std::cout << "  Grad (tmp)   : " << mb(grad_total)    << " MB\n";
+	std::cout << "  Grad (ping)  : " << mb(grad_total)    << " MB\n";
+	std::cout << "  Grad (pong)  : " << mb(grad_total)    << " MB\n";
 	std::cout << "  Other        : " << mb(other_total)   << " MB\n";
 	std::cout << "  Total        : " << mb(grand_total)   << " MB  ("
 	          << mb(device_local_total * 9 / 10) << " MB budget)\n\n";
@@ -332,16 +358,20 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	}
 	if (grad_total > 0)
 	{
-		grad_tmp_buffer = vulkan->create_buffer(grad_total, usage);
+		grad_tmp_buffer   = vulkan->create_buffer(grad_total, usage);
+		grad_tmp_buffer_b = vulkan->create_buffer(grad_total, usage);
 	}
 	if (other_total > 0)
 	{
 		other_buffer = vulkan->create_buffer(other_total, usage);
 	}
 
-	VkDeviceSize feature_t = 0;
-	VkDeviceSize param_t = 0;
-	VkDeviceSize other_t = 0;
+	VkDeviceSize      feature_t        = 0;
+	VkDeviceSize      param_t          = 0;
+	VkDeviceSize      other_t          = 0;
+	int               grad_ping        = 0;     // alternates 0/1 to assign ping vs pong buffer
+	vkBufferResource* last_grad_buf    = NULL;  // buffer used by the most recent grad allocation
+	VkDeviceSize      last_grad_sz     = 0;     // aligned size of that allocation
 
 	for (VkMod_Reference& ref : Modules)
 	{
@@ -363,8 +393,27 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
-					// grad buffers are reused each backward pass -- all share the same pool, no offset
-					out->X = vulkan->create_buffer_slice(grad_tmp_buffer, 0, sz);
+					// Special case: Skip_Module writes grad_output_a and grad_output_b in
+					// the same dispatch. Pack grad_output_b immediately after grad_output_a
+					// in the same buffer so both outputs share one ping/pong slot and the
+					// input (grad_input) stays on the opposite buffer.
+					if (td == &Skip_Module::Reflection && strcmp(m.name, "grad_output_b") == 0)
+					{
+						assert(last_grad_buf && "Skip grad_output_b has no preceding grad_output_a");
+						assert(last_grad_sz + sz <= grad_total && "Skip grad_output_b overflows grad_tmp buffer");
+						out->X = vulkan->create_buffer_slice(last_grad_buf, last_grad_sz, sz);
+					}
+					else
+					{
+						// Ping-pong: alternate between two same-sized grad buffers so that
+						// consecutive backward steps never bind the same VkBuffer for both
+						// read (grad_input) and write (grad_output) in the same dispatch.
+						vkBufferResource* buf = (grad_ping % 2 == 0) ? grad_tmp_buffer : grad_tmp_buffer_b;
+						out->X = vulkan->create_buffer_slice(buf, 0, sz);
+						last_grad_buf = buf;
+						last_grad_sz  = sz;
+						grad_ping++;
+					}
 				}
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
 				{

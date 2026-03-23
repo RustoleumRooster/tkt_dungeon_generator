@@ -78,6 +78,7 @@ struct Quantize_Module : public Vulkan_Module
 	virtual void setDimensions() override;
 	virtual void forward() override;
 	virtual void backward() override;
+	virtual void initialize_parameters() override;
 
 	std::vector<f32> mapped_codebook;
 

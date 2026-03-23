@@ -94,6 +94,7 @@ struct Convolution_Module : public Vulkan_Module
 	void backward();
 	void backward_A();
 	void backward_B();
+	virtual void initialize_parameters() override;
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;

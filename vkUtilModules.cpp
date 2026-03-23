@@ -120,6 +120,29 @@ void Convolution_Module::setDimensions()
 	pushconstants.n            = input_dimensions.B;
 }
 
+void Convolution_Module::initialize_parameters()
+{
+	// Kaiming He initialization: weights ~ N(0, sqrt(2 / fan_in))
+	// fan_in = k * k * c_in
+	u32 k    = weights.dimensions.H;
+	u32 c_in = weights.dimensions.B;
+	u32 n    = weights.dimensions.B * weights.dimensions.C * k * k;
+
+	float fan_in = float(k * k * c_in);
+	float std_dev = std::sqrt(2.0f / fan_in);
+
+	std::mt19937 rng(std::random_device{}());
+	std::normal_distribution<float> dist(0.0f, std_dev);
+
+	std::vector<float> data(n);
+	for (u32 i = 0; i < n; i++)
+		data[i] = dist(rng);
+
+	upload_to_buffer(weights.X, data);
+	weights.initialized = true;
+	log() << "Convolution weights initialized (He, std=" << std_dev << ")\n";
+}
+
 void Convolution_Module::forward()
 {
 	// bindings: weights(0), input_tensor(1), output_tensor(2)

@@ -463,8 +463,9 @@ namespace reflect
 	{
 		Vulkan_Module* owner = NULL;
 		TensorDimension dimensions; //not reflected
-		bool ready = false;
-		bool grad_ready = false;
+		bool ready       = false;
+		bool grad_ready  = false;
+		bool initialized = false;
 
 		template<typename T = f32>
 		VkDeviceSize size() const
@@ -660,6 +661,10 @@ public:
 	//virtual void run() {}
 	virtual void forward() {}
 	virtual void backward() {}
+	virtual void initialize_parameters() {}
+
+	// Upload a CPU float buffer into a device-local vkBufferResource via staging.
+	void upload_to_buffer(vkBufferResource* buf, const std::vector<float>& data);
 	//bool load_resources();
 	bool ready_forward();
 	bool ready_backward();
@@ -765,7 +770,8 @@ public:
 	vkBufferResource* param_grad_buffer = NULL;
 	vkBufferResource* param_m_buffer    = NULL;
 	vkBufferResource* param_v_buffer    = NULL;
-	vkBufferResource* grad_tmp_buffer   = NULL;
+	vkBufferResource* grad_tmp_buffer   = NULL;  // ping
+	vkBufferResource* grad_tmp_buffer_b = NULL;  // pong
 	vkBufferResource* other_buffer      = NULL;
 
 	VkDeviceSize       param_total_bytes = 0;

@@ -63,6 +63,7 @@ struct GroupNorm_Module : public Vulkan_Module
 	virtual void setDimensions();
 	virtual void forward();
 	virtual void backward();
+	virtual void initialize_parameters() override;
 
 	void forward_A();
 	void forward_B();

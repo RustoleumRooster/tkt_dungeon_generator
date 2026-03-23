@@ -71,6 +71,23 @@ void GroupNorm_Module::setDimensions()
 	pushconstants.w = input_dimensions.W;
 }
 
+void GroupNorm_Module::initialize_parameters()
+{
+	// parameters layout: { 1, 1, 2, C }
+	//   row 0: gamma (scale) — initialize to 1
+	//   row 1: beta  (shift) — initialize to 0
+	u32 C = parameters.dimensions.W;
+
+	std::vector<float> data(2 * C, 0.0f);
+	for (u32 i = 0; i < C; i++)
+		data[i] = 1.0f;  // gamma
+	// beta already 0 from fill
+
+	upload_to_buffer(parameters.X, data);
+	parameters.initialized = true;
+	log() << "GroupNorm parameters initialized (gamma=1, beta=0)\n";
+}
+
 void GroupNorm_Module::forward()
 {
 	forward_A();

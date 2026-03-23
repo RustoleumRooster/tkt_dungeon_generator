@@ -36,7 +36,7 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe gelu.comp --target-env=vulkan1.3  --target-
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe gelu_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/gelu_grad.spv
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe commit_loss.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/commit_loss.spv
-
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe adam.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/adam.spv
 
 
 

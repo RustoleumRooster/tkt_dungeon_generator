@@ -897,3 +897,13 @@ void Vulkan_Module::read_results()
 
 	delete[] hit_results;
 }
+
+void Vulkan_Module::upload_to_buffer(vkBufferResource* buf, const std::vector<float>& data)
+{
+	VkDeviceSize bytes = data.size() * sizeof(float);
+	MyBufferObject staging(m_device, bytes, 1,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+	staging.writeToBuffer((void*)data.data(), bytes);
+	m_device->copyBuffer(staging.getBuffer(), buf->Buffer, bytes);
+}

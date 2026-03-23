@@ -68,6 +68,29 @@ void Quantize_Module::Pass::cleanup(VkDevice device)
 // Module
 //
 
+void Quantize_Module::initialize_parameters()
+{
+	// Codebook layout: { 1, 1, n_codes, dim }
+	// Initialize each code vector with N(0, 1/sqrt(dim)) so they land on the
+	// unit hypersphere in expectation — a reasonable starting spread for VQ.
+	u32 n_codes = codebook.dimensions.H;
+	u32 dim     = codebook.dimensions.W;
+	u32 n       = n_codes * dim;
+
+	float std_dev = 1.0f / std::sqrt(float(dim));
+
+	std::mt19937 rng(std::random_device{}());
+	std::normal_distribution<float> dist(0.0f, std_dev);
+
+	std::vector<float> data(n);
+	for (u32 i = 0; i < n; i++)
+		data[i] = dist(rng);
+
+	upload_to_buffer(codebook.X, data);
+	codebook.initialized = true;
+	log() << "Quantize codebook initialized (" << n_codes << " codes, dim=" << dim << ", std=" << std_dev << ")\n";
+}
+
 void Quantize_Module::setDimensions()
 {
 	codebook.dimensions      = codebook_size;
