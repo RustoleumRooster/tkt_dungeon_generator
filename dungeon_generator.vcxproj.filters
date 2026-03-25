@@ -382,6 +382,9 @@
     <None Include="quantize_grad.comp">
       <Filter>Resource Files\Source Files\glsl</Filter>
     </None>
+    <None Include="quantize_ema.comp">
+      <Filter>Resource Files\Source Files\glsl</Filter>
+    </None>
     <None Include="add_grad.comp">
       <Filter>Resource Files\Source Files\glsl</Filter>
     </None>

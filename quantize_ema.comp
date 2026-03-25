@@ -1,0 +1,65 @@
+#version 450
+
+// EMA codebook update for VQ-VAE.
+//
+// Dispatch: (K, 1, 1)  — one workgroup per codebook vector
+// local_size_x = 128   — one thread per dimension d
+//
+// Each workgroup handles one codebook entry k.
+// Thread d scans all n_positions to accumulate new_sum[d] and (d==0) new_count.
+// EMA is applied in-place, then the codebook vector is overwritten.
+
+layout(std430, binding = 0) buffer         Codebook   { float codebook[]; };  // [K, D]
+layout(std430, binding = 1) buffer         EmaCount   { float ema_count[]; }; // [K]
+layout(std430, binding = 2) buffer         EmaSum     { float ema_sum[];   }; // [K, D]
+layout(std430, binding = 3) readonly buffer Indices   { uint  indices[];   }; // [B*H*W]
+layout(std430, binding = 4) readonly buffer ZE        { float z_e[];       }; // [B, D, H, W]
+
+layout(push_constant) uniform PushConstants
+{
+    uint  K;
+    uint  D;
+    uint  n_positions;  // B * H * W
+    uint  HW;           // H * W
+    float decay;
+} pc;
+
+layout(local_size_x = 128) in;
+
+void main()
+{
+    uint k = gl_WorkGroupID.x;
+    uint d = gl_LocalInvocationID.x;
+
+    if (k >= pc.K || d >= pc.D) return;
+
+    // Accumulate new_sum[d] (and new_count if d==0) over all spatial positions.
+    float new_sum   = 0.0;
+    uint  new_count = 0u;
+
+    for (uint p = 0; p < pc.n_positions; p++)
+    {
+        if (indices[p] == k)
+        {
+            uint n  = p / pc.HW;
+            uint hw = p % pc.HW;
+            new_sum += z_e[n * pc.D * pc.HW + d * pc.HW + hw];
+            if (d == 0u) new_count++;
+        }
+    }
+
+    // Update EMA count (thread 0 only — all threads in this workgroup share the same k).
+    if (d == 0u)
+        ema_count[k] = pc.decay * ema_count[k] + (1.0 - pc.decay) * float(new_count);
+
+    // Update EMA sum for this dimension.
+    ema_sum[k * pc.D + d] = pc.decay * ema_sum[k * pc.D + d] + (1.0 - pc.decay) * new_sum;
+
+    // Ensure thread 0's write to ema_count[k] is visible before all threads read it.
+    memoryBarrierBuffer();
+    barrier();
+
+    // Rewrite codebook vector.
+    float count = max(ema_count[k], 1e-5);
+    codebook[k * pc.D + d] = ema_sum[k * pc.D + d] / count;
+}

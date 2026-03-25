@@ -59,6 +59,24 @@ struct Quantize_Module : public Vulkan_Module
 		0.25f //beta
 	};
 
+	struct ema_pushconstant_struct
+	{
+		u32   K;           // number of codebook vectors
+		u32   D;           // codebook vector dimension
+		u32   n_positions; // B * H * W
+		u32   HW;          // H * W
+		float decay;       // EMA decay rate
+	};
+
+	ema_pushconstant_struct ema_pushconstants
+	{
+		512,   // K
+		128,   // D
+		1024,  // n_positions (16 * 8 * 8)
+		64,    // HW (8 * 8)
+		0.99f  // decay
+	};
+
 	struct Pass
 	{
 		VkPipelineLayout                          pipelineLayout;
@@ -74,11 +92,13 @@ struct Quantize_Module : public Vulkan_Module
 	Pass fwd_pass;
 	Pass commit_loss_pass;
 	Pass bwd_pass;
+	Pass ema_pass;
 
 	virtual void setDimensions() override;
 	virtual void forward() override;
 	virtual void backward() override;
 	virtual void initialize_parameters() override;
+	void reset_dead_codes();
 
 	std::vector<f32> mapped_codebook;
 
@@ -91,6 +111,9 @@ struct Quantize_Module : public Vulkan_Module
 
 	reflect::input<vkBufferResource>     grad_input;      // dL/d_quantized_output from downstream
 	reflect::output<vkBufferResource>    grad_output;     // dL/d_encoder_output (straight-through)
+
+	reflect::parameter<vkBufferResource> ema_count;       // EMA running count per codebook vector [K]
+	reflect::parameter<vkBufferResource> ema_sum;         // EMA running sum per codebook vector   [K, D]
 
 	REFLECT_VKMOD()
 };
