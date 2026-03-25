@@ -688,8 +688,13 @@ public:
 	bool enabled = true;
 	bool is_submodule = false;
 	u32 depth = 0;
-	bool forward_pass_complete = false;
+	bool forward_pass_complete  = false;
 	bool backward_pass_complete = false;
+
+	float elapsed_forward  = 0.f;   // ms, most recent forward pass
+	float elapsed_backward = 0.f;   // ms, most recent backward pass
+	float total_forward    = 0.f;   // ms, accumulated across all passes
+	float total_backward   = 0.f;   // ms, accumulated across all passes
 
 	static reflect::Vulkan_Reflection_Factory factory;
 

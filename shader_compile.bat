@@ -4,6 +4,7 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe conv32.comp --target-env=vulkan1.3  --targe
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe conv_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/conv_grad.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe conv_grad_b.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/conv_grad_b.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe conv_grad_b_reduce.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/conv_grad_b_reduce.spv
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe mean_var.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/mean_var.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe activate.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/activate.spv

@@ -1,24 +1,17 @@
 #version 450
 
-// bindings: input_tensor(0), grad_in(1), grad_weights(2)
+// Dispatch: (c_out, c_in, 1) — one WG per (oc, ic) pair.
+// local_size_x = 16 — one thread per kernel position (k² ≤ 16).
 //
-// Each thread owns one weight [oc, ic, kh, kw] and
-// accumulates its gradient by summing over (N, oh, ow).
+// Each thread exclusively owns one weight dW[oc, ic, kpos] and accumulates
+// it by looping over (batch, oh, ow).  No atomics, no shared memory.
+//
+// All threads in the WG share the same (oc, ic) and therefore read the same
+// grad_in[batch, oc, oh, ow] value each iteration → L1 broadcast, high reuse.
 
-layout(std430, binding = 0) readonly buffer InputTensor
-{
-	float input_tensor[];
-};
-
-layout(std430, binding = 1) readonly buffer InputGradient
-{
-	float grad_in[];
-};
-
-layout(std430, binding = 2) buffer WeightGradients
-{
-	float grad_weights[];
-};
+layout(std430, binding = 0) readonly buffer InputTensor   { float input_tensor[]; };
+layout(std430, binding = 1) readonly buffer InputGradient { float grad_in[];       };
+layout(std430, binding = 2) buffer          WeightGrads   { float grad_weights[];  };
 
 layout(push_constant) uniform PushConstants
 {
@@ -32,23 +25,19 @@ layout(push_constant) uniform PushConstants
 	uint n;
 } pc;
 
-layout(local_size_x = 256) in;
+layout(local_size_x = 16) in;   // one thread per kpos; guard handles k² < 16
 
 void main()
 {
-	uint idx = gl_GlobalInvocationID.x;
-	uint kk  = pc.k * pc.k;
+	uint oc   = gl_WorkGroupID.x;
+	uint ic   = gl_WorkGroupID.y;
+	uint kpos = gl_LocalInvocationID.x;
+	uint kk   = pc.k * pc.k;
 
-	if (idx >= pc.c_out * pc.c_in * kk)
-		return;
+	if (kpos >= kk) return;
 
-	// decompose flat index -> (oc, ic, kh, kw)
-	uint oc   = idx / (pc.c_in * kk);
-	uint rem  = idx % (pc.c_in * kk);
-	uint ic   = rem / kk;
-	uint kpos = rem % kk;
-	uint kh   = kpos / pc.k;
-	uint kw   = kpos % pc.k;
+	uint kh = kpos / pc.k;
+	uint kw = kpos % pc.k;
 
 	uint OH = pc.img_size_out;
 	uint OW = pc.img_size_out;
@@ -79,5 +68,6 @@ void main()
 				}
 			}
 
-	grad_weights[idx] = dw;
+	// Each thread writes exactly one weight — no atomics needed.
+	grad_weights[oc * pc.c_in * kk + ic * kk + kpos] = dw;
 }

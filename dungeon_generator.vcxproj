@@ -236,6 +236,7 @@
     <None Include="conv64.comp" />
     <None Include="conv_grad.comp" />
     <None Include="conv_grad_b.comp" />
+    <None Include="conv_grad_b_reduce.comp" />
     <None Include="gelu.comp" />
     <None Include="gelu_grad.comp" />
     <None Include="groupnorm.comp" />

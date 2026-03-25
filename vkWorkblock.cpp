@@ -11,6 +11,7 @@
 #include "vkSigmoidModule.h"
 #include "vkBCELossModule.h"
 #include <cassert>
+#include <chrono>
 
 REFLECT_VKMOD_BEGIN(Workblock_Module)
 	ALIAS("Workblock")		
@@ -55,22 +56,53 @@ void Workblock_Module::forward()
 {
 	log() << GetDynamicReflection()->name << " (forward) :\n";
 
+	auto t0 = std::chrono::high_resolution_clock::now();
+
 	for (Vulkan_Module* mod : modules)
 	{
 		assert(mod->ready_forward() && "Module not ready...");
+		auto s0 = std::chrono::high_resolution_clock::now();
 		mod->forward();
+		auto s1 = std::chrono::high_resolution_clock::now();
+		mod->elapsed_forward = std::chrono::duration<float, std::milli>(s1 - s0).count();
+		mod->total_forward  += mod->elapsed_forward;
+		mod->log() << "  " << mod->GetDynamicReflection()->name
+		      << " fwd: " << mod->elapsed_forward << " ms\n";
 		mod->forward_pass_complete = true;
 	}
 
 	output_tensor.ready = true;
+
+	auto t1 = std::chrono::high_resolution_clock::now();
+	elapsed_forward = std::chrono::duration<float, std::milli>(t1 - t0).count();
+	total_forward  += elapsed_forward;
+	log() << GetDynamicReflection()->name << " forward: "
+	      << elapsed_forward << " ms  (total: " << total_forward << " ms)\n";
 }
 
 void Workblock_Module::backward()
 {
 	log() << GetDynamicReflection()->name << " (backward) :\n";
 
-	for (int i= modules.size()-1; i>=0; i--)
-		modules[i]->backward();
+	auto t0 = std::chrono::high_resolution_clock::now();
+
+	for (int i = (int)modules.size() - 1; i >= 0; i--)
+	{
+		Vulkan_Module* mod = modules[i];
+		auto s0 = std::chrono::high_resolution_clock::now();
+		mod->backward();
+		auto s1 = std::chrono::high_resolution_clock::now();
+		mod->elapsed_backward = std::chrono::duration<float, std::milli>(s1 - s0).count();
+		mod->total_backward  += mod->elapsed_backward;
+		mod->log() << "  " << mod->GetDynamicReflection()->name
+		      << " bwd: " << mod->elapsed_backward << " ms\n";
+	}
+
+	auto t1 = std::chrono::high_resolution_clock::now();
+	elapsed_backward = std::chrono::duration<float, std::milli>(t1 - t0).count();
+	total_backward  += elapsed_backward;
+	log() << GetDynamicReflection()->name << " backward: "
+	      << elapsed_backward << " ms  (total: " << total_backward << " ms)\n";
 }
 
 //============================================================

@@ -111,7 +111,7 @@ void Convolution_Module::setDimensions()
 {
 	output_tensor.dimensions    = output_dimensions;
 	weights.dimensions			= { input_dimensions.C, output_dimensions.C, pushconstants.k, pushconstants.k };
-	grad_output.dimensions		= input_dimensions;
+	grad_output.dimensions      = input_dimensions;
 
 	pushconstants.c_in         = input_dimensions.C;
 	pushconstants.c_out        = output_dimensions.C;
@@ -251,11 +251,14 @@ void Convolution_Module::backward_A()
 	uint32_t n_WorkGroups_x = input_dimensions.W;
 	uint32_t n_WorkGroups_y = input_dimensions.H;
 	uint32_t n_WorkGroups_z = input_dimensions.B;
+	uint32_t n_WG = n_WorkGroups_x * n_WorkGroups_y * n_WorkGroups_z;
 
-	log() << "Conv backward: (" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << ")\n";
+	log() << "Conv backward: [" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << "] = " << n_WG <<" \n";
 
 	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+
+	auto bB_t0 = std::chrono::high_resolution_clock::now();
 
 	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, n_WorkGroups_z);
 
@@ -265,13 +268,19 @@ void Convolution_Module::backward_A()
 
 	vkDeviceWaitIdle(m_device->getDevice());
 
+	auto bB_t1 = std::chrono::high_resolution_clock::now();
+	float bB_ms = std::chrono::duration<float, std::milli>(bB_t1 - bB_t0).count();
+	log() << "[Conv backward_A] " << bB_ms << " ms\n";
+
 	bwd_pass.cleanup(m_device->getDevice());
 }
 
 void Convolution_Module::backward_B()
 {
-	// bindings: input_tensor(0), grad_input(1), grad_weights(2)
-	// shader computes dL/dW: each thread owns one weight and sums over (N, oh, ow)
+	// bindings: input_tensor(0), grad_input(1), weights.Y(2)
+	// Dispatch: (c_out, c_in, 1) — one WG per (oc, ic) pair.
+	// local_size_x = 16 (kk threads), each owns one weight element dW[oc,ic,kpos]
+	// and loops over (batch, oh, ow). No atomics, no shared memory.
 	bwd_pass_B.bindings.resize(3);
 	bwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	bwd_pass_B.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
@@ -304,15 +313,12 @@ void Convolution_Module::backward_B()
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass_B.pipelineLayout, 0, 1, &bwd_pass_B.descriptorSets[0], 0, 0);
 
-	uint32_t n_weights      = pushconstants.k * pushconstants.k * pushconstants.c_in * pushconstants.c_out;
-	uint32_t n_WorkGroups_x = (n_weights + 255) / 256;
-
-	log() << "Conv backward_B: " << n_WorkGroups_x << " workgroups (" << n_weights << " weights)\n";
-
 	vkCmdPushConstants(commandBuffer, bwd_pass_B.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
+	auto bB_t0 = std::chrono::high_resolution_clock::now();
+
+	vkCmdDispatch(commandBuffer, pushconstants.c_out, pushconstants.c_in, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
 
@@ -320,9 +326,13 @@ void Convolution_Module::backward_B()
 
 	vkDeviceWaitIdle(m_device->getDevice());
 
+	auto bB_t1 = std::chrono::high_resolution_clock::now();
+	float bB_ms = std::chrono::duration<float, std::milli>(bB_t1 - bB_t0).count();
+	log() << "[Conv backward_B] " << pushconstants.c_out << "x" << pushconstants.c_in
+	          << " WGs  " << bB_ms << " ms\n";
+
 	bwd_pass_B.cleanup(m_device->getDevice());
 }
-
 
 //============================================================
 // Normalization Module
