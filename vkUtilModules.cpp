@@ -143,8 +143,9 @@ void Convolution_Module::initialize_parameters()
 	log() << "Convolution weights initialized (He, std=" << std_dev << ")\n";
 }
 
-void Convolution_Module::forward()
+void Convolution_Module::startup()
 {
+	// --- fwd_pass: conv{32,64,128}.spv ---
 	// bindings: weights(0), input_tensor(1), output_tensor(2)
 	fwd_pass.bindings.resize(3);
 	fwd_pass.bindings[0] = weights.X->getDescriptorSetLayout(0);
@@ -152,21 +153,61 @@ void Convolution_Module::forward()
 	fwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	{
+		const char* spv = "shaders/conv128.spv";
+		if (output_dimensions.C <= 32)
+			spv = "shaders/conv32.spv";
+		else if (output_dimensions.C <= 64)
+			spv = "shaders/conv64.spv";
 
-	const char* spv = "shaders/conv128.spv";
-	if (output_dimensions.C <= 32)
-		spv = "shaders/conv32.spv";
-	else if (output_dimensions.C <= 64)
-		spv = "shaders/conv64.spv";
-
-	fwd_pass.createPipeline(m_device, spv, push_constant);
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		fwd_pass.createPipeline(m_device, spv, r);
+	}
 
 	output_tensor.ready = true;
 
+	// --- bwd_pass (A): conv_grad.spv — dL/d(input) ---
+	// bindings: weights(0), grad_input(1), grad_output(2)
+	bwd_pass.bindings.resize(3);
+	bwd_pass.bindings[0] = weights.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/conv_grad.spv", r);
+	}
+
+	grad_output.ready = true;
+
+	// --- bwd_pass_B: conv_grad_b.spv — dL/d(weights) ---
+	// bindings: input_tensor(0), grad_input(1), weights.Y(2)
+	bwd_pass_B.bindings.resize(3);
+	bwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	bwd_pass_B.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
+	bwd_pass_B.bindings[2] = weights.Y->getDescriptorSetLayout(2);
+	bwd_pass_B.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_B.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass_B.createPipeline(m_device, "shaders/conv_grad_b.spv", r);
+	}
+
+	weights.grad_ready = true;
+
+	log() << "Conv startup complete\n";
+}
+
+void Convolution_Module::cleanup_passes()
+{
+	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
+	bwd_pass_B.cleanup(m_device->getDevice());
+}
+
+void Convolution_Module::forward()
+{
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
@@ -176,60 +217,32 @@ void Convolution_Module::forward()
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		fwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, fwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	// one workgroup per output pixel; batch in z
-	uint32_t n_WorkGroups_x = output_dimensions.W;
-	uint32_t n_WorkGroups_y = output_dimensions.H;
-	uint32_t n_WorkGroups_z = output_dimensions.B;
+	log() << "Conv forward: (" << output_dimensions.B << " x " << output_dimensions.W << " x " << output_dimensions.H << ")\n";
 
-	log() << "Conv forward: (" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << ")\n";
-
-	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, output_dimensions.W, output_dimensions.H, output_dimensions.B);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, n_WorkGroups_z);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	fwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void Convolution_Module::backward()
 {
-	backward_A();
-	backward_B();
+	dispatch_backward_A(m_device->beginSingleTimeCommands());
+	dispatch_backward_B(m_device->beginSingleTimeCommands());
 }
 
-void Convolution_Module::backward_A()
+void Convolution_Module::dispatch_backward_A(VkCommandBuffer cmd)
 {
-	// bindings: weights(0), grad_input(1), grad_output(2)
-	// shader computes dL/d(input) given upstream gradient grad_input and weights
-	bwd_pass.bindings.resize(3);
-	bwd_pass.bindings[0] = weights.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
-	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
-	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
-
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass.createPipeline(m_device, "shaders/conv_grad.spv", push_constant);
-
-	grad_output.ready = true;
-
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
@@ -239,63 +252,27 @@ void Convolution_Module::backward_A()
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	// dispatch over input spatial dims (gradient flows back to input)
-	uint32_t n_WorkGroups_x = input_dimensions.W;
-	uint32_t n_WorkGroups_y = input_dimensions.H;
-	uint32_t n_WorkGroups_z = input_dimensions.B;
-	uint32_t n_WG = n_WorkGroups_x * n_WorkGroups_y * n_WorkGroups_z;
+	log() << "Conv backward_A: [" << input_dimensions.B << " x " << input_dimensions.W << " x " << input_dimensions.H << "]\n";
 
-	log() << "Conv backward: [" << n_WorkGroups_z << " x " << n_WorkGroups_x << " x " << n_WorkGroups_y << "] = " << n_WG <<" \n";
-
-	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	auto bB_t0 = std::chrono::high_resolution_clock::now();
-
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, n_WorkGroups_y, n_WorkGroups_z);
-
-	m_device->endSingleTimeCommands(commandBuffer);
+	auto t0 = std::chrono::high_resolution_clock::now();
+	vkCmdDispatch(cmd, input_dimensions.W, input_dimensions.H, input_dimensions.B);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	float ms = std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock::now() - t0).count();
+	log() << "[Conv backward_A] " << ms << " ms\n";
 
 	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	auto bB_t1 = std::chrono::high_resolution_clock::now();
-	float bB_ms = std::chrono::duration<float, std::milli>(bB_t1 - bB_t0).count();
-	log() << "[Conv backward_A] " << bB_ms << " ms\n";
-
-	bwd_pass.cleanup(m_device->getDevice());
 }
 
-void Convolution_Module::backward_B()
+void Convolution_Module::dispatch_backward_B(VkCommandBuffer cmd)
 {
-	// bindings: input_tensor(0), grad_input(1), weights.Y(2)
-	// Dispatch: (c_out, c_in, 1) — one WG per (oc, ic) pair.
-	// local_size_x = 16 (kk threads), each owns one weight element dW[oc,ic,kpos]
-	// and loops over (batch, oh, ow). No atomics, no shared memory.
-	bwd_pass_B.bindings.resize(3);
-	bwd_pass_B.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	bwd_pass_B.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
-	bwd_pass_B.bindings[2] = weights.Y->getDescriptorSetLayout(2);
-	bwd_pass_B.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_B.bindings);
-
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass_B.createPipeline(m_device, "shaders/conv_grad_b.spv", push_constant);
-
-	weights.grad_ready = true;
-
 	{
 		MyDescriptorWriter writer(*bwd_pass_B.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass_B.descriptorSets.resize(1);
@@ -305,33 +282,21 @@ void Convolution_Module::backward_B()
 		writer.build(bwd_pass_B.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass_B.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_B.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass_B.pipelineLayout, 0, 1, &bwd_pass_B.descriptorSets[0], 0, 0);
 
-	vkCmdPushConstants(commandBuffer, bwd_pass_B.pipelineLayout,
+	vkCmdPushConstants(cmd, bwd_pass_B.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 
-	auto bB_t0 = std::chrono::high_resolution_clock::now();
-
-	vkCmdDispatch(commandBuffer, pushconstants.c_out, pushconstants.c_in, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
+	auto t0 = std::chrono::high_resolution_clock::now();
+	vkCmdDispatch(cmd, pushconstants.c_out, pushconstants.c_in, 1);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	float ms = std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock::now() - t0).count();
+	log() << "[Conv backward_B] " << pushconstants.c_out << "x" << pushconstants.c_in << " WGs  " << ms << " ms\n";
 
 	m_DescriptorPool->freeDescriptorsSets(bwd_pass_B.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	auto bB_t1 = std::chrono::high_resolution_clock::now();
-	float bB_ms = std::chrono::duration<float, std::milli>(bB_t1 - bB_t0).count();
-	log() << "[Conv backward_B] " << pushconstants.c_out << "x" << pushconstants.c_in
-	          << " WGs  " << bB_ms << " ms\n";
-
-	bwd_pass_B.cleanup(m_device->getDevice());
 }
 
 //============================================================

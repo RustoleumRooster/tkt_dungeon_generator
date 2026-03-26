@@ -61,15 +61,17 @@ struct GroupNorm_Module : public Vulkan_Module
 	Pass bwd_pass_4;  // groupnorm_grad_4.spv — dL/dx
 
 	virtual void setDimensions();
-	virtual void forward();
-	virtual void backward();
+	virtual void startup() override;
+	virtual void forward() override;
+	virtual void backward() override;
+	virtual void cleanup_passes() override;
 	virtual void initialize_parameters() override;
 
-	void forward_A();
-	void forward_B();
-	void backward_1();
-	void backward_2();
-	void backward_4();
+	void dispatch_forward_A(VkCommandBuffer);
+	void dispatch_forward_B(VkCommandBuffer);
+	void dispatch_backward_1(VkCommandBuffer);
+	void dispatch_backward_2(VkCommandBuffer);
+	void dispatch_backward_4(VkCommandBuffer);
 	
 
 	std::vector<f32> mapped_parameters;

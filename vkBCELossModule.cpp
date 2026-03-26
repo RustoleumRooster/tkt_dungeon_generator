@@ -64,25 +64,49 @@ void BCE_Loss_Module::setDimensions()
 	                             input_dimensions.H, input_dimensions.W };
 }
 
-void BCE_Loss_Module::forward()
+void BCE_Loss_Module::startup()
 {
-	// descriptor set layout: predictions(0), ground_truth(1), loss(2)
+	// --- fwd_pass: bce_loss.spv ---
+	// bindings: predictions(0), ground_truth(1), loss(2)
 	fwd_pass.bindings.resize(3);
 	fwd_pass.bindings[0] = predictions.X->getDescriptorSetLayout(0);
 	fwd_pass.bindings[1] = ground_truth.X->getDescriptorSetLayout(1);
 	fwd_pass.bindings[2] = loss.X->getDescriptorSetLayout(2);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	fwd_pass.createPipeline(m_device, "shaders/bce_loss.spv", push_constant);
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		fwd_pass.createPipeline(m_device, "shaders/bce_loss.spv", r);
+	}
 
 	loss.ready = true;
 
-	// allocate descriptor sets
+	// --- bwd_pass: bce_grad.spv ---
+	// bindings: predictions(0), ground_truth(1), gradient_out(2)
+	bwd_pass.bindings.resize(3);
+	bwd_pass.bindings[0] = predictions.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = ground_truth.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = gradient_out.X->getDescriptorSetLayout(2);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/bce_grad.spv", r);
+	}
+
+	gradient_out.ready = true;
+
+	log() << "BCE Loss startup complete\n";
+}
+
+void BCE_Loss_Module::cleanup_passes()
+{
+	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
+}
+
+void BCE_Loss_Module::forward()
+{
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
@@ -104,7 +128,6 @@ void BCE_Loss_Module::forward()
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
-
 	log() << "BCE forward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
@@ -113,33 +136,13 @@ void BCE_Loss_Module::forward()
 	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	fwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void BCE_Loss_Module::backward()
 {
-	// bindings: predictions(0), ground_truth(1), gradient_out(2)
-	bwd_pass.bindings.resize(3);
-	bwd_pass.bindings[0] = predictions.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = ground_truth.X->getDescriptorSetLayout(1);
-	bwd_pass.bindings[2] = gradient_out.X->getDescriptorSetLayout(2);
-	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
-
-	VkPushConstantRange push_constant;
-	push_constant.offset = 0;
-	push_constant.size = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass.createPipeline(m_device, "shaders/bce_grad.spv", push_constant);
-
-	gradient_out.ready = true;
-
-	// allocate descriptor sets
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
@@ -158,7 +161,6 @@ void BCE_Loss_Module::backward()
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
-
 	log() << "BCE backward: " << n_WorkGroups_x << " workgroups\n";
 
 	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
@@ -167,10 +169,7 @@ void BCE_Loss_Module::backward()
 	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
 
 	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	bwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
 }

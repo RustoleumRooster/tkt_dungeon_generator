@@ -659,8 +659,10 @@ public:
 
 	virtual void build_workflow(std::vector<Vulkan_Module*>&) {}
 	//virtual void run() {}
+	virtual void startup() {}
 	virtual void forward() {}
 	virtual void backward() {}
+	virtual void cleanup_passes() {}
 	virtual void initialize_parameters() {}
 
 	// Upload a CPU float buffer into a device-local vkBufferResource via staging.

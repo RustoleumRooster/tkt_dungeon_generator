@@ -95,8 +95,10 @@ struct Quantize_Module : public Vulkan_Module
 	Pass ema_pass;
 
 	virtual void setDimensions() override;
+	virtual void startup() override;
 	virtual void forward() override;
 	virtual void backward() override;
+	virtual void cleanup_passes() override;
 	virtual void initialize_parameters() override;
 	void reset_dead_codes();
 

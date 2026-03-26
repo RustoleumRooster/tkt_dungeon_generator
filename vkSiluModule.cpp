@@ -61,22 +61,49 @@ void Silu_Module::setDimensions()
 	grad_output.dimensions   = input_dimensions;
 }
 
-void Silu_Module::forward()
+void Silu_Module::startup()
 {
+	// --- fwd_pass: silu.spv ---
 	// bindings: input_tensor(0), output_tensor(1)
 	fwd_pass.bindings.resize(2);
 	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
 	fwd_pass.bindings[1] = output_tensor.X->getDescriptorSetLayout(1);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	fwd_pass.createPipeline(m_device, "shaders/silu.spv", push_constant);
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		fwd_pass.createPipeline(m_device, "shaders/silu.spv", r);
+	}
 
 	output_tensor.ready = true;
+
+	// --- bwd_pass: silu_grad.spv ---
+	// bindings: input_tensor(0) [original x], grad_input(1) [dL/dy], grad_output(2) [dL/dx]
+	bwd_pass.bindings.resize(3);
+	bwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/silu_grad.spv", r);
+	}
+
+	grad_output.ready = true;
+
+	log() << "SiLU startup complete\n";
+}
+
+void Silu_Module::cleanup_passes()
+{
+	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
+}
+
+void Silu_Module::forward()
+{
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
@@ -86,51 +113,26 @@ void Silu_Module::forward()
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		fwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, fwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	uint32_t n_elements     = pushconstants.n * pushconstants.c * pushconstants.h * pushconstants.w;
-	uint32_t n_WorkGroups_x = (n_elements + 255) / 256;
-
+	uint32_t n_WorkGroups_x = (pushconstants.n * pushconstants.c * pushconstants.h * pushconstants.w + 255) / 256;
 	log() << "SiLU forward: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	fwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void Silu_Module::backward()
 {
-	// bindings: input_tensor(0) [original x], grad_input(1) [dL/dy], grad_output(2) [dL/dx]
-	// grad: dL/dx = dL/dy * (sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x)))
-	bwd_pass.bindings.resize(3);
-	bwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
-	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
-	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
-
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass.createPipeline(m_device, "shaders/silu_grad.spv", push_constant);
-
-	grad_output.ready = true;
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
@@ -141,29 +143,19 @@ void Silu_Module::backward()
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	uint32_t n_elements     = pushconstants.n * pushconstants.c * pushconstants.h * pushconstants.w;
-	uint32_t n_WorkGroups_x = (n_elements + 255) / 256;
-
+	uint32_t n_WorkGroups_x = (pushconstants.n * pushconstants.c * pushconstants.h * pushconstants.w + 255) / 256;
 	log() << "SiLU backward: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	bwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
 }

@@ -68,22 +68,48 @@ void NNUp_Module::setDimensions()
 	                           output.dimensions.H * output.dimensions.W;
 }
 
-void NNUp_Module::forward()
+void NNUp_Module::startup()
 {
+	// --- fwd_pass: NN_up.spv ---
 	// bindings: input(0), output(1)
 	fwd_pass.bindings.resize(2);
 	fwd_pass.bindings[0] = input.X->getDescriptorSetLayout(0);
 	fwd_pass.bindings[1] = output.X->getDescriptorSetLayout(1);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	fwd_pass.createPipeline(m_device, "shaders/NN_up.spv", push_constant);
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		fwd_pass.createPipeline(m_device, "shaders/NN_up.spv", r);
+	}
 
 	output.ready = true;
+
+	// --- bwd_pass: NN_up_grad.spv ---
+	// bindings: grad_input(0) [dL/d_output, large], grad_output(1) [dL/d_input, small]
+	bwd_pass.bindings.resize(2);
+	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = grad_output.X->getDescriptorSetLayout(1);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/NN_up_grad.spv", r);
+	}
+
+	grad_output.ready = true;
+
+	log() << "NNUp startup complete\n";
+}
+
+void NNUp_Module::cleanup_passes()
+{
+	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
+}
+
+void NNUp_Module::forward()
+{
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
@@ -93,49 +119,33 @@ void NNUp_Module::forward()
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		fwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, fwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
-
 	log() << "NNUp forward: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	fwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void NNUp_Module::backward()
 {
-	// bindings: grad_input(0) [dL/d_output, large], grad_output(1) [dL/d_input, small]
-	// Each input element accumulates grads from its 4 replicated output positions.
-	bwd_pass.bindings.resize(2);
-	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = grad_output.X->getDescriptorSetLayout(1);
-	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+	// n_elements for backward = input element count (small tensor);
+	// H/W in push constants are the OUTPUT (large) dimensions — shader divides by 2 internally
+	uint32_t n_elements_in  = input_dimensions.B * input_dimensions.C *
+	                          input_dimensions.H * input_dimensions.W;
+	pushconstant_struct bwd_pc = pushconstants;
+	bwd_pc.n_elements = n_elements_in;
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass.createPipeline(m_device, "shaders/NN_up_grad.spv", push_constant);
-
-	grad_output.ready = true;
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
@@ -145,35 +155,19 @@ void NNUp_Module::backward()
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	// n_elements for backward = input element count (small tensor)
-	uint32_t n_elements_in  = input_dimensions.B * input_dimensions.C *
-	                          input_dimensions.H * input_dimensions.W;
 	uint32_t n_WorkGroups_x = (n_elements_in + 255) / 256;
-
-	// H/W in push constants are the OUTPUT (large) dimensions — shader divides by 2 internally
-	pushconstant_struct bwd_pc = pushconstants;
-	bwd_pc.n_elements = n_elements_in;
-
 	log() << "NNUp backward: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &bwd_pc);
+	vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	bwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
 }

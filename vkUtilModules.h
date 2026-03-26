@@ -90,11 +90,14 @@ struct Convolution_Module : public Vulkan_Module
 	Pass bwd_pass_B;
 
 	void setDimensions();
-	void forward();
-	void backward();
-	void backward_A();
-	void backward_B();
+	virtual void startup() override;
+	virtual void forward() override;
+	virtual void backward() override;
+	virtual void cleanup_passes() override;
 	virtual void initialize_parameters() override;
+
+	void dispatch_backward_A(VkCommandBuffer);
+	void dispatch_backward_B(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>     input_tensor;
 	reflect::output<vkBufferResource>    output_tensor;

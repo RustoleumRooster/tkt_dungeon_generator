@@ -59,6 +59,7 @@ void Quantize_Module::Pass::createPipeline(MyDevice* device, const char* spv,
 	pipeline = new ComputePipeline(device, spv, pipelineLayout);
 }
 
+
 void Quantize_Module::Pass::cleanup(VkDevice device)
 {
 	descriptorSetLayout->cleanup();
@@ -126,8 +127,9 @@ void Quantize_Module::setDimensions()
 	ema_pushconstants.HW           = input_dimensions.H * input_dimensions.W;
 }
 
-void Quantize_Module::forward()
+void Quantize_Module::startup()
 {
+	// --- fwd_pass: quantize.spv ---
 	// bindings: input_tensor(0), codebook(1), output_tensor(2), indices_buffer(3), loss_buffer(4)
 	fwd_pass.bindings.resize(5);
 	fwd_pass.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
@@ -137,15 +139,74 @@ void Quantize_Module::forward()
 	fwd_pass.bindings[4] = loss_buffer.X->getDescriptorSetLayout(4);
 	fwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		fwd_pass.createPipeline(m_device, "shaders/quantize.spv", r);
+	}
 
-	fwd_pass.createPipeline(m_device, "shaders/quantize.spv", push_constant);
+	output_tensor.ready  = true;
+	indices_buffer.ready = true;
+	loss_buffer.ready    = true;
 
-	output_tensor.ready = true;
+	// --- commit_loss_pass: commit_loss.spv ---
+	// bindings: loss_buffer(0), commit_loss(1)
+	commit_loss_pass.bindings.resize(2);
+	commit_loss_pass.bindings[0] = loss_buffer.X->getDescriptorSetLayout(0);
+	commit_loss_pass.bindings[1] = commit_loss.X->getDescriptorSetLayout(1);
+	commit_loss_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, commit_loss_pass.bindings);
 
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(commit_pushconstant_struct) };
+		commit_loss_pass.createPipeline(m_device, "shaders/commit_loss.spv", r);
+	}
+
+	commit_loss.ready = true;
+
+	// --- bwd_pass: quantize_grad.spv ---
+	// bindings: grad_input(0), input_tensor(1), output_tensor(2), grad_output(3)
+	bwd_pass.bindings.resize(4);
+	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
+	bwd_pass.bindings[3] = grad_output.X->getDescriptorSetLayout(3);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bwd_pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/quantize_grad.spv", r);
+	}
+
+	grad_output.ready = true;
+
+	// --- ema_pass: quantize_ema.spv ---
+	// bindings: codebook(0), ema_count(1), ema_sum(2), indices_buffer(3), input_tensor(4)
+	ema_pass.bindings.resize(5);
+	ema_pass.bindings[0] = codebook.X->getDescriptorSetLayout(0);
+	ema_pass.bindings[1] = ema_count.X->getDescriptorSetLayout(1);
+	ema_pass.bindings[2] = ema_sum.X->getDescriptorSetLayout(2);
+	ema_pass.bindings[3] = indices_buffer.X->getDescriptorSetLayout(3);
+	ema_pass.bindings[4] = input_tensor.X->getDescriptorSetLayout(4);
+	ema_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, ema_pass.bindings);
+
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ema_pushconstant_struct) };
+		ema_pass.createPipeline(m_device, "shaders/quantize_ema.spv", r);
+	}
+
+	log() << "Quantize startup complete\n";
+}
+
+void Quantize_Module::cleanup_passes()
+{
+	fwd_pass.cleanup(m_device->getDevice());
+	commit_loss_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
+	ema_pass.cleanup(m_device->getDevice());
+}
+
+void Quantize_Module::forward()
+{
+	// fwd pass: nearest-codebook lookup
 	{
 		MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		fwd_pass.descriptorSets.resize(1);
@@ -157,47 +218,26 @@ void Quantize_Module::forward()
 		writer.build(fwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+	{
+		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		fwd_pass.pipeline->getPipeline());
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, fwd_pass.pipeline->getPipeline());
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+			fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
+		uint32_t n_WorkGroups_x = input_dimensions.B * input_dimensions.H * input_dimensions.W;
+		log() << "Quantize forward: " << n_WorkGroups_x << " workgroups\n";
 
-	uint32_t n_WorkGroups_x = input_dimensions.B * input_dimensions.H * input_dimensions.W;
+		vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
+			VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+		vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	log() << "Quantize forward: " << n_WorkGroups_x << " workgroups\n";
+		m_device->endSingleTimeCommands(cmd);
+		vkDeviceWaitIdle(m_device->getDevice());
+		m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
+	}
 
-	vkCmdPushConstants(commandBuffer, fwd_pass.pipelineLayout,
-		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
-
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	indices_buffer.ready = true;
-	loss_buffer.ready    = true;
-	fwd_pass.cleanup(m_device->getDevice());
-
-	// Commit Loss Pass: mean reduction over loss_buffer -> commit_loss scalar
-	// bindings: loss_buffer(0), commit_loss(1)
-	commit_loss_pass.bindings.resize(2);
-	commit_loss_pass.bindings[0] = loss_buffer.X->getDescriptorSetLayout(0);
-	commit_loss_pass.bindings[1] = commit_loss.X->getDescriptorSetLayout(1);
-	commit_loss_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, commit_loss_pass.bindings);
-
-	VkPushConstantRange commit_push_constant;
-	commit_push_constant.offset     = 0;
-	commit_push_constant.size       = sizeof(commit_pushconstant_struct);
-	commit_push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	commit_loss_pass.createPipeline(m_device, "shaders/commit_loss.spv", commit_push_constant);
-
+	// commit loss pass: mean reduction over loss_buffer
 	{
 		MyDescriptorWriter writer(*commit_loss_pass.descriptorSetLayout, *m_DescriptorPool);
 		commit_loss_pass.descriptorSets.resize(1);
@@ -207,35 +247,25 @@ void Quantize_Module::forward()
 	}
 
 	{
-		VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-		// zero the accumulator before dispatching
-		vkCmdFillBuffer(commandBuffer, commit_loss.X->Buffer, 0, VK_WHOLE_SIZE, 0);
+		vkCmdFillBuffer(cmd, commit_loss.X->Buffer, 0, VK_WHOLE_SIZE, 0);
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-			commit_loss_pass.pipeline->getPipeline());
-
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, commit_loss_pass.pipeline->getPipeline());
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 			commit_loss_pass.pipelineLayout, 0, 1, &commit_loss_pass.descriptorSets[0], 0, 0);
 
 		uint32_t n_WorkGroups_x = (commit_pushconstants.n_elements + 255) / 256;
-
 		log() << "Commit loss: " << n_WorkGroups_x << " workgroups\n";
 
-		vkCmdPushConstants(commandBuffer, commit_loss_pass.pipelineLayout,
+		vkCmdPushConstants(cmd, commit_loss_pass.pipelineLayout,
 			VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(commit_pushconstant_struct), &commit_pushconstants);
+		vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-		vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-		m_device->endSingleTimeCommands(commandBuffer);
+		m_device->endSingleTimeCommands(cmd);
+		vkDeviceWaitIdle(m_device->getDevice());
+		m_DescriptorPool->freeDescriptorsSets(commit_loss_pass.descriptorSets);
 	}
-
-	m_DescriptorPool->freeDescriptorsSets(commit_loss_pass.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	commit_loss.ready = true;
-	commit_loss_pass.cleanup(m_device->getDevice());
 }
 
 void Quantize_Module::reset_dead_codes()
@@ -320,26 +350,7 @@ void Quantize_Module::reset_dead_codes()
 
 void Quantize_Module::backward()
 {
-	// bindings: grad_input(0)   — dL/d_quantized from downstream
-	//           input_tensor(1) — z_e, encoder output (for commitment gradient)
-	//           output_tensor(2)— e, quantized output  (for commitment gradient)
-	//           grad_output(3)  — dL/dz_e = STE + 2*beta*(z_e - e)/n_elements
-	bwd_pass.bindings.resize(4);
-	bwd_pass.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
-	bwd_pass.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
-	bwd_pass.bindings[2] = output_tensor.X->getDescriptorSetLayout(2);
-	bwd_pass.bindings[3] = grad_output.X->getDescriptorSetLayout(3);
-	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
-
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(bwd_pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	bwd_pass.createPipeline(m_device, "shaders/quantize_grad.spv", push_constant);
-
-	grad_output.ready = true;
-
+	// bwd pass: straight-through estimator + commitment gradient
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
@@ -350,49 +361,26 @@ void Quantize_Module::backward()
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+	{
+		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipeline->getPipeline());
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+			bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
+		uint32_t n_WorkGroups_x = (bwd_pushconstants.n_elements * bwd_pushconstants.n_channels + 255) / 256;
+		log() << "Quantize backward: " << n_WorkGroups_x << " workgroups\n";
 
-	uint32_t total_elements  = bwd_pushconstants.n_elements * bwd_pushconstants.n_channels;
-	uint32_t n_WorkGroups_x  = (total_elements + 255) / 256;
+		vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
+			VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bwd_pushconstant_struct), &bwd_pushconstants);
+		vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	log() << "Quantize backward: " << n_WorkGroups_x << " workgroups\n";
+		m_device->endSingleTimeCommands(cmd);
+		vkDeviceWaitIdle(m_device->getDevice());
+		m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
+	}
 
-	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
-		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(bwd_pushconstant_struct), &bwd_pushconstants);
-
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	bwd_pass.cleanup(m_device->getDevice());
-
-	// EMA codebook update pass
-	// bindings: codebook(0), ema_count(1), ema_sum(2), indices_buffer(3), input_tensor/z_e(4)
-	ema_pass.bindings.resize(5);
-	ema_pass.bindings[0] = codebook.X->getDescriptorSetLayout(0);
-	ema_pass.bindings[1] = ema_count.X->getDescriptorSetLayout(1);
-	ema_pass.bindings[2] = ema_sum.X->getDescriptorSetLayout(2);
-	ema_pass.bindings[3] = indices_buffer.X->getDescriptorSetLayout(3);
-	ema_pass.bindings[4] = input_tensor.X->getDescriptorSetLayout(4);
-	ema_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, ema_pass.bindings);
-
-	VkPushConstantRange ema_push_constant;
-	ema_push_constant.offset     = 0;
-	ema_push_constant.size       = sizeof(ema_pushconstant_struct);
-	ema_push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	ema_pass.createPipeline(m_device, "shaders/quantize_ema.spv", ema_push_constant);
-
+	// EMA pass: update codebook via exponential moving average
 	{
 		MyDescriptorWriter writer(*ema_pass.descriptorSetLayout, *m_DescriptorPool);
 		ema_pass.descriptorSets.resize(1);
@@ -405,27 +393,20 @@ void Quantize_Module::backward()
 	}
 
 	{
-		VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-			ema_pass.pipeline->getPipeline());
-
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, ema_pass.pipeline->getPipeline());
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 			ema_pass.pipelineLayout, 0, 1, &ema_pass.descriptorSets[0], 0, 0);
 
 		log() << "Quantize EMA: " << ema_pushconstants.K << " workgroups\n";
 
-		vkCmdPushConstants(commandBuffer, ema_pass.pipelineLayout,
+		vkCmdPushConstants(cmd, ema_pass.pipelineLayout,
 			VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ema_pushconstant_struct), &ema_pushconstants);
+		vkCmdDispatch(cmd, ema_pushconstants.K, 1, 1);
 
-		vkCmdDispatch(commandBuffer, ema_pushconstants.K, 1, 1);
-
-		m_device->endSingleTimeCommands(commandBuffer);
+		m_device->endSingleTimeCommands(cmd);
+		vkDeviceWaitIdle(m_device->getDevice());
+		m_DescriptorPool->freeDescriptorsSets(ema_pass.descriptorSets);
 	}
-
-	m_DescriptorPool->freeDescriptorsSets(ema_pass.descriptorSets);
-
-	vkDeviceWaitIdle(m_device->getDevice());
-
-	ema_pass.cleanup(m_device->getDevice());
 }

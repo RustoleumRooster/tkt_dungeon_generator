@@ -49,8 +49,10 @@ struct NNUp_Module : public Vulkan_Module
 	Pass bwd_pass;
 
 	void setDimensions();
-	void forward();
-	void backward();
+	virtual void startup() override;
+	virtual void forward() override;
+	virtual void backward() override;
+	virtual void cleanup_passes() override;
 
 	reflect::input<vkBufferResource>  input;
 	reflect::output<vkBufferResource> output;

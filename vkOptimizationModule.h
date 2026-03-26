@@ -57,7 +57,9 @@ struct Optimization_Module : public Vulkan_Module
 	vkBufferResource* m_buf      = NULL;
 	vkBufferResource* v_buf      = NULL;
 
+	virtual void startup() override;
 	virtual void backward() override;
+	virtual void cleanup_passes() override;
 
 	REFLECT_VKMOD()
 };

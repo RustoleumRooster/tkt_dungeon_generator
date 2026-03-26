@@ -45,8 +45,9 @@ void Optimization_Module::Pass::cleanup(VkDevice device)
 // backward
 //
 
-void Optimization_Module::backward()
+void Optimization_Module::startup()
 {
+	// --- bwd_pass: adam.spv ---
 	// bindings: params(0), grads(1), m(2), v(3)
 	bwd_pass.bindings.resize(4);
 	bwd_pass.bindings[0] = params_buf->getDescriptorSetLayout(0);
@@ -55,13 +56,22 @@ void Optimization_Module::backward()
 	bwd_pass.bindings[3] = v_buf->getDescriptorSetLayout(3);
 	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
 
-	VkPushConstantRange push_constant;
-	push_constant.offset     = 0;
-	push_constant.size       = sizeof(pushconstant_struct);
-	push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	{
+		VkPushConstantRange r{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct) };
+		bwd_pass.createPipeline(m_device, "shaders/adam.spv", r);
+	}
 
-	bwd_pass.createPipeline(m_device, "shaders/adam.spv", push_constant);
+	log() << "Adam startup complete\n";
+}
 
+void Optimization_Module::cleanup_passes()
+{
+	bwd_pass.cleanup(m_device->getDevice());
+}
+
+void Optimization_Module::backward()
+{
+	// B1_t and B2_t are updated per-step by the workflow before this call.
 	{
 		MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
 		bwd_pass.descriptorSets.resize(1);
@@ -72,28 +82,21 @@ void Optimization_Module::backward()
 		writer.build(bwd_pass.descriptorSets[0]);
 	}
 
-	VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-		bwd_pass.pipeline->getPipeline());
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
 
 	uint32_t n_WorkGroups_x = (pushconstants.n_elements + 255) / 256;
-
 	log() << "Adam optimizer: " << n_WorkGroups_x << " workgroups\n";
 
-	vkCmdPushConstants(commandBuffer, bwd_pass.pipelineLayout,
+	vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, n_WorkGroups_x, 1, 1);
 
-	vkCmdDispatch(commandBuffer, n_WorkGroups_x, 1, 1);
-
-	m_device->endSingleTimeCommands(commandBuffer);
-
-	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
-
+	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 
-	bwd_pass.cleanup(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
 }
