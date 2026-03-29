@@ -186,6 +186,15 @@
     <ClCompile Include="vkGroupNormModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkLayerNormModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkPosEmbedModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkProjectionQKVModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="vkSiluModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
@@ -279,6 +288,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkGroupNormModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkLayerNormModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkPosEmbedModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkProjectionQKVModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkSiluModule.h">

@@ -1,0 +1,25 @@
+#version 450
+
+// Positional embedding backward — input gradient is a straight pass-through.
+// Addition has identity gradient w.r.t. the input.
+
+layout(std430, binding = 0) readonly  buffer Grad_input  { float grad_input[];  };
+layout(std430, binding = 1) writeonly buffer Grad_output { float grad_output[]; };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint R;
+	uint C;
+	uint D;
+} pc;
+
+layout(local_size_x = 128) in;
+
+void main()
+{
+	uint d     = gl_LocalInvocationID.x;
+	uint token = gl_WorkGroupID.x;
+
+	grad_output[token * pc.D + d] = grad_input[token * pc.D + d];
+}

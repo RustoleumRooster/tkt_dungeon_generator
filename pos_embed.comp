@@ -1,0 +1,34 @@
+#version 450
+
+layout(std430, binding = 0) readonly  buffer Input_tensor  { float input_tensor[];  };
+layout(std430, binding = 1) readonly  buffer Params        { float params[];        };
+layout(std430, binding = 2) writeonly buffer Output_tensor { float output_tensor[]; };
+
+// params layout: [0..R*D)   = row embeddings (R rows × D dims)
+//                [R*D..end) = col embeddings (C rows × D dims)
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint R;
+	uint C;
+	uint D;
+} pc;
+
+layout(local_size_x = 128) in;  // one thread per embedding dim
+
+void main()
+{
+	uint d     = gl_LocalInvocationID.x;   // [0, D)
+	uint token = gl_WorkGroupID.x;         // [0, B*R*C)
+
+	uint RC = pc.R * pc.C;
+	uint r  = (token % RC) / pc.C;
+	uint c  = (token % RC) % pc.C;
+
+	float x  = input_tensor[token * pc.D + d];
+	float rp = params[r * pc.D + d];
+	float cp = params[(pc.R + c) * pc.D + d];
+
+	output_tensor[token * pc.D + d] = x + rp + cp;
+}

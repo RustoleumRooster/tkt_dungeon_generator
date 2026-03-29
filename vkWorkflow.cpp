@@ -8,6 +8,8 @@
 #include <vulkan/vulkan.h>
 #include "vkGroupNormModule.h"
 #include "vkSkipModule.h"
+#include "vkLayerNormModule.h"
+#include "vkPosEmbedModule.h"
 #include <cassert>
 #include <chrono>
 
@@ -83,8 +85,6 @@ void Vulkan_Workflow::make_default_workflow()
 	Modules.push_back(VkMod_Reference{ final_block });
 	Modules.push_back(VkMod_Reference{ ground_truth });
 	Modules.push_back(VkMod_Reference{ bce_loss });
-
-	backward_pass_head = bce_loss;
 
 	std::vector<Vulkan_Module*> append_list;
 
@@ -188,6 +188,126 @@ void Vulkan_Workflow::make_default_workflow()
 		items.push_back(ref.X);
 }
 
+void Vulkan_Workflow::make_transformer_workflow()
+{
+	//=================================================
+	//Encoder
+	//
+
+	Create_Tensor_Module* create_images = new Create_Tensor_Module();
+	create_images->dimensions = { 16,128,64,64 };
+
+	Convolution_Gelu_Block* conv_block = new Convolution_Gelu_Block();
+	conv_block->input_dimension = { 16,128,64,64 };
+	conv_block->output_dimension = { 16,128,32,32 };
+
+	Convolution_Gelu_Block* conv_block_2 = new Convolution_Gelu_Block();
+	conv_block_2->input_dimension = { 16,128,32,32 };
+	conv_block_2->output_dimension = { 16,128,16,16 };
+
+	Convolution_Gelu_Block* conv_block_3 = new Convolution_Gelu_Block();
+	conv_block_3->input_dimension = { 16,128,16,16 };
+	conv_block_3->output_dimension = { 16,128,8,8 };
+
+	Quantize_Module* quantize = new Quantize_Module();
+	quantize->input_dimensions = { 16,128,8,8 };
+	quantize->codebook_size = { 1,1,512,128 };
+
+	//=================================================
+	// Transformer
+	//
+
+	PosEmbed_Module* pos_embed = new PosEmbed_Module();
+	pos_embed->input_dimensions = { 16,64,1,128 };
+
+	LayerNorm_Module* layer_norm = new LayerNorm_Module();
+	layer_norm->input_dimensions = { 16,64,1,128 };
+
+	optimizer = new Optimization_Module();
+
+	// Optimizer goes first so the reverse backward loop runs it last,
+	// after all gradients have been accumulated.
+	Modules.push_back(VkMod_Reference{ optimizer });
+	Modules.push_back(VkMod_Reference{ create_images });
+	Modules.push_back(VkMod_Reference{ conv_block });
+	Modules.push_back(VkMod_Reference{ conv_block_2 });
+	Modules.push_back(VkMod_Reference{ conv_block_3 });
+	Modules.push_back(VkMod_Reference{ quantize });
+	Modules.push_back(VkMod_Reference{ layer_norm });
+	Modules.push_back(VkMod_Reference{ pos_embed });
+
+	std::vector<Vulkan_Module*> append_list;
+
+	for (VkMod_Reference& ref : Modules)
+		ref.X->build_workflow(append_list);
+
+	for (Vulkan_Module* mod : append_list)
+		Modules.push_back(VkMod_Reference{ mod });
+
+	//=====================================================
+	// Encoder
+	//
+
+	//1
+	reflect::connect(&create_images->output_tensor, &conv_block->input_tensor);
+	reflect::connect(&create_images->output_tensor, &conv_block->head_input());
+
+	//2
+	reflect::connect(&conv_block->tail_output(), &conv_block_2->input_tensor);
+	reflect::connect(&conv_block->tail_output(), &conv_block_2->head_input());
+
+	//3
+	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->input_tensor);
+	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->head_input());
+
+	//=====================================================
+	// Quantize
+	//
+
+	reflect::connect(&conv_block_3->tail_output(), &quantize->input_tensor);
+
+	//=====================================================
+	// Transformer
+	//
+
+	reflect::connect(&quantize->output_tensor, &pos_embed->input_tensor);
+
+	reflect::connect(&pos_embed->output_tensor, &layer_norm->input_tensor);
+
+	
+
+	//=====================================================
+	// Loss
+	//
+
+	
+
+	//=====================================================
+	// Backward Pass
+	//
+	// Pattern: each block gets two connects from the upstream gradient output —
+	//   one to the workblock-level input_grad (satisfies plan_memory pass 3 assert)
+	//   one to gradient_input() (the actual sub-module entry point for backward compute)
+	//
+
+	// Loss → Decoder
+	//TODO
+
+	// Quantize → Encoder
+	reflect::connect(&quantize->grad_output, &conv_block_3->input_grad);
+	reflect::connect(&quantize->grad_output, &conv_block_3->gradient_input());
+
+	reflect::connect(&conv_block_3->gradient_output(), &conv_block_2->input_grad);
+	reflect::connect(&conv_block_3->gradient_output(), &conv_block_2->gradient_input());
+
+	reflect::connect(&conv_block_2->gradient_output(), &conv_block->input_grad);
+	reflect::connect(&conv_block_2->gradient_output(), &conv_block->gradient_input());
+
+	items.clear();
+	for (VkMod_Reference& ref : Modules)
+		items.push_back(ref.X);
+}
+
 void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 {
 	for (VkMod_Reference& mod : Modules)
@@ -235,7 +355,13 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 		}
 	}
 
-	const int n_passes = 5;
+	for (VkMod_Reference& mod : Modules)
+	{
+		//if (!mod.X->is_submodule)
+			mod.X->startup();
+	}
+
+	const int n_passes = 1;
 
 	for (int pass = 0; pass < n_passes; pass++)
 	{
@@ -270,6 +396,7 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 				mod.X->forward_pass_complete = true;
 			}
 		}
+		if(false)	//backward pass disabled
 		for (int i = (int)Modules.size() - 1; i >= 0; i--)
 		{
 			Vulkan_Module* mod = Modules[i].X;
@@ -288,6 +415,12 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 		auto pass_end = std::chrono::high_resolution_clock::now();
 		float pass_ms = std::chrono::duration<float, std::milli>(pass_end - pass_start).count();
 		std::cout << "[Pass " << pass + 1 << " complete] " << pass_ms << " ms, (average " << pass_ms / float(pass+1) <<" ms)\n";
+	}
+
+	for (VkMod_Reference& mod : Modules)
+	{
+		//if (!mod.X->is_submodule)
+			mod.X->cleanup_passes();
 	}
 
 	vulkan->cleanup();
@@ -501,7 +634,7 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				assert(src->X != nullptr && "plan_memory pass 3: src_output has no buffer");
 
 				in->X = src->X;
-			}
+			}/* BACKWARD PASS TEMPORARILY DISABLED
 			else if (m_tD->inherited_type == &reflect::input_type::Reflection &&
 				(m.flags & REFLECT_VKMOD_COMPONENT_GRAD))
 			{
@@ -514,7 +647,7 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				assert(src->X != nullptr && "plan_memory pass 3: gradient src_output has no buffer");
 
 				in->X = src->X;
-			}
+			}*/
 		}
 
 	}

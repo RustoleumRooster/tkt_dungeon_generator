@@ -1,0 +1,53 @@
+#version 450
+
+// Positional embedding param gradients.
+// Dispatch (R + C, 1, 1) workgroups × 128 threads (one per dim d).
+//   WG [0,   R)  → grad for row embedding r = wg_id     (sum over b, c)
+//   WG [R, R+C)  → grad for col embedding c = wg_id - R (sum over b, r)
+
+layout(std430, binding = 0) readonly  buffer Grad_input { float grad_input[]; };
+layout(std430, binding = 1) writeonly buffer Param_grad { float param_grad[]; };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint R;
+	uint C;
+	uint D;
+} pc;
+
+layout(local_size_x = 128) in;
+
+void main()
+{
+	uint wg = gl_WorkGroupID.x;
+	uint d  = gl_LocalInvocationID.x;
+	uint RC = pc.R * pc.C;
+
+	float sum = 0.0;
+
+	if (wg < pc.R)
+	{
+		// Row embedding grad: sum over b in [0,B) and c in [0,C)
+		uint r = wg;
+		for (uint b = 0; b < pc.B; b++)
+			for (uint c = 0; c < pc.C; c++)
+			{
+				uint token = b * RC + r * pc.C + c;
+				sum += grad_input[token * pc.D + d];
+			}
+	}
+	else
+	{
+		// Col embedding grad: sum over b in [0,B) and r in [0,R)
+		uint c = wg - pc.R;
+		for (uint b = 0; b < pc.B; b++)
+			for (uint r = 0; r < pc.R; r++)
+			{
+				uint token = b * RC + r * pc.C + c;
+				sum += grad_input[token * pc.D + d];
+			}
+	}
+
+	param_grad[wg * pc.D + d] = sum;
+}
