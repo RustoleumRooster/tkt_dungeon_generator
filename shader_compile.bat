@@ -12,6 +12,16 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize.comp --target-env=vulkan1.3  --tar
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/quantize_grad.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize_ema.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/quantize_ema.spv
 
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe pos_embed.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/pos_embed.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe pos_embed_grad_x.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/pos_embed_grad_x.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe pos_embed_grad_p.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/pos_embed_grad_p.spv
+
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe layernorm.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/layernorm.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe layernorm_grad_x.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/layernorm_grad_x.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe layernorm_grad_p.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/layernorm_grad_p.spv
+
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe matmul.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/matmul.spv
+
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/groupnorm.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm2.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/groupnorm2.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm_grad_1.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/groupnorm_grad_1.spv

@@ -766,6 +766,7 @@ public:
 	std::vector<VkMod_Reference> Modules;
 
 	void make_default_workflow();
+	void make_transformer_workflow();
 	void initialize_and_run(Vulkan_App* vulkan);
 	void plan_memory(Vulkan_App* vulkan);
 

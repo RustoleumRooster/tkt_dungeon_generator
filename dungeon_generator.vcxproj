@@ -164,6 +164,7 @@
     <ClCompile Include="CameraPanel2D.cpp" />
     <ClCompile Include="CGUIButton.cpp" />
     <ClCompile Include="CGUISkin.cpp" />
+    <ClCompile Include="dungeon.cpp" />
     <ClCompile Include="edit_classes.cpp" />
     <ClCompile Include="edit_env.cpp" />
     <ClCompile Include="ex_gui_elements.cpp" />
@@ -180,6 +181,9 @@
     <ClCompile Include="vkDevice.cpp" />
     <ClCompile Include="vkGeluModule.cpp" />
     <ClCompile Include="vkGroupNormModule.cpp" />
+    <ClCompile Include="vkLayerNormModule.cpp" />
+    <ClCompile Include="vkPosEmbedModule.cpp" />
+    <ClCompile Include="vkProjectionQKVModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkNNUpModule.cpp" />
     <ClCompile Include="vkOptimizationModule.cpp" />
@@ -195,9 +199,11 @@
     <ClInclude Include="CameraPanel.h" />
     <ClInclude Include="CGUIButton.h" />
     <ClInclude Include="CGUISkin.h" />
+    <ClInclude Include="dungeon.h" />
     <ClInclude Include="edit_classes.h" />
     <ClInclude Include="edit_env.h" />
     <ClInclude Include="ex_gui_elements.h" />
+    <ClInclude Include="fonts.h" />
     <ClInclude Include="global.h" />
     <ClInclude Include="GUI_tools.h" />
     <ClInclude Include="Reflection.h" />
@@ -214,6 +220,9 @@
     <ClInclude Include="vkDevice.h" />
     <ClInclude Include="vkGeluModule.h" />
     <ClInclude Include="vkGroupNormModule.h" />
+    <ClInclude Include="vkLayerNormModule.h" />
+    <ClInclude Include="vkPosEmbedModule.h" />
+    <ClInclude Include="vkProjectionQKVModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkNNUpModule.h" />
     <ClInclude Include="vkOptimizationModule.h" />
@@ -244,9 +253,16 @@
     <None Include="groupnorm_grad_1.comp" />
     <None Include="groupnorm_grad_2.comp" />
     <None Include="groupnorm_grad_3.comp" />
+    <None Include="layernorm.comp" />
+    <None Include="layernorm_grad_p.comp" />
+    <None Include="layernorm_grad_x.comp" />
     <None Include="mean_var.comp" />
     <None Include="NN_up.comp" />
     <None Include="NN_up_grad.comp" />
+    <None Include="pos_embed.comp" />
+    <None Include="pos_embed_grad_p.comp" />
+    <None Include="pos_embed_grad_x.comp" />
+    <None Include="matmul.comp" />
     <None Include="quantize.comp" />
     <None Include="quantize_grad.comp" />
     <None Include="quantize_ema.comp" />

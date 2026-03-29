@@ -14,6 +14,7 @@
 #include "CameraPanel.h"
 #include "vkModules.h"
 
+#include "dungeon.h"
 
 using namespace irr;
 using namespace std;
@@ -79,7 +80,7 @@ int main()
 	//
 
 	AGG_TT_Font_Renderer font_render;
-	AGG_TT_Font* agg_font = font_render.Render_Font(gui, "Calibri", 22, 1.0, -1, 2, core::dimension2du{ 256,256 });
+	AGG_TT_Font* agg_font = font_render.Render_Font(gui, "Px437", 20, 1.0, -1, 2, core::dimension2du{ 256,256 });
 
 	//==============================================================
 	//Initialize GUI elements
@@ -99,6 +100,18 @@ int main()
 	//
 	//
 
+	TestPanel* panel = gui_layout->getCameraQuad()->panel_TL;
+
+	Dungeon_Map_Gui_Base dungeon_gui_base;
+
+	if (panel)
+	{
+		recti r{ position2di{0,0}, panel->getViewPanel()->getAbsoluteClippingRect().getSize() };
+
+		Dungeon_Map_Gui* dungeon_gui = new Dungeon_Map_Gui(&dungeon_gui_base, gui, panel->getViewPanel(), -1, r);
+		dungeon_gui->drop();
+	}
+
 	device->getCursorControl()->setVisible(true);
 
 	int lastFPS = -1;
@@ -111,7 +124,7 @@ int main()
 	Vulkan_Workflow workflow;
 
 	Vulkan_App vulkan(driver);
-	workflow.make_default_workflow();
+	workflow.make_transformer_workflow();
 	workflow.initialize_and_run(&vulkan);
 
 	while (device->run())

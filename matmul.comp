@@ -1,0 +1,58 @@
+#version 450
+
+//MATMUL with 16 x 16 tiles, comments indicate default sizes
+//Assumes batched Matrix_A, each multiplying against Matrix_B, producing batched Matrix_C
+
+layout(std430, binding = 0) readonly  buffer Matrix_A  { float mat_A[];  }; //[B x 64 x 128]
+layout(std430, binding = 1) readonly  buffer Matrix_B  { float mat_B[];  }; //[128 x 384]
+layout(std430, binding = 2) writeonly buffer Matrix_C  { float mat_C[];	 };	//[B x 64 x 384]
+
+
+layout(push_constant) uniform PushConstants
+{
+	uint M; //64
+	uint N; //384
+	uint K; //128
+} pc;		// [M x K] * [K x N] = [M x N]
+
+layout(local_size_x = 128) in;  // 16x16
+
+shared float Tile_A[16][16];
+shared float Tile_B[16][16];
+
+void main()
+{
+	uint r			= gl_LocalInvocationID.x / 16;  
+	uint c			= gl_LocalInvocationID.x % 16;  
+	uint c0			= gl_WorkGroupID.x * 16;         
+	uint r0			= gl_WorkGroupID.y * 16;         
+	uint B			= gl_WorkGroupID.z;     
+	uint n_tiles	= pc.K / 16;
+
+	float sum = 0.0;
+
+	for(int t=0; t<n_tiles; t++)
+	{
+		//Load A and B
+
+		Tile_A[r][c] = mat_A[B * (pc.M * pc.K)	+ (r0 + r) * pc.K + (t * 16) + c];
+		Tile_B[r][c] = mat_B[ ((t * 16) + r) * pc.N	+ c0 + c];
+
+		barrier();
+
+
+		//sum over k=16 multiplications
+
+		for(int k=0; k<16; k++) 
+		{
+			sum += Tile_A[r][k] * Tile_B[k][c];
+		}
+
+		barrier();
+		
+	}
+	
+	//write to our output position
+
+	mat_C[B * (pc.M * pc.N) + (r0 + r) * pc.N + c0 + c] = sum;
+}
