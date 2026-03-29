@@ -1,0 +1,76 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430, binding = 0) readonly  buffer Input_tensor  { float input_tensor[];  };
+layout(std430, binding = 1) writeonly buffer InvStd_buffer { float invstd_buffer[]; };
+layout(std430, binding = 2) writeonly buffer XNorm_buffer  { float xnorm_buffer[];  };
+layout(std430, binding = 3) readonly  buffer Parameters    { float parameters[];    };
+layout(std430, binding = 4) writeonly buffer Output_tensor { float output_tensor[]; };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint T;
+	uint D;
+} pc;
+
+layout(local_size_x = 128) in;  // one thread per embedding dim element
+
+shared float sg_partials[4];    // 128 threads / 32 subgroup size = 4 subgroups
+shared float shared_mean;
+shared float shared_invstd;
+
+void main()
+{
+	uint d     = gl_LocalInvocationID.x;   // dimension index [0, D)
+	uint token = gl_WorkGroupID.x;         // token index [0, B*T)
+	uint D     = pc.D;
+
+	float x = input_tensor[token * D + d];
+
+	// Mean
+	float sg_sum = subgroupAdd(x);
+	if (subgroupElect())
+		sg_partials[gl_SubgroupID] = sg_sum;
+	barrier();
+
+	if (d == 0)
+	{
+		float sum = 0.0;
+		for (int i = 0; i < 4; i++) sum += sg_partials[i];
+		shared_mean = sum / float(D);
+	}
+	barrier();
+
+	float mean = shared_mean;
+	float diff = x - mean;
+
+	// Variance
+	float sg_var = subgroupAdd(diff * diff);
+	if (subgroupElect())
+		sg_partials[gl_SubgroupID] = sg_var;
+	barrier();
+
+	if (d == 0)
+	{
+		float var = 0.0;
+		for (int i = 0; i < 4; i++) 
+			var += sg_partials[i];
+
+		float invstd = inversesqrt(var / float(D) + 1e-5);
+		shared_invstd        = invstd;
+		invstd_buffer[token] = invstd;
+	}
+	barrier();
+
+	float invstd = shared_invstd;
+	float xn     = diff * invstd;
+
+	xnorm_buffer[token * D + d] = xn;
+
+	float gamma = parameters[d * 2 + 0];
+	float beta  = parameters[d * 2 + 1];
+
+	output_tensor[token * D + d] = gamma * xn + beta;
+}

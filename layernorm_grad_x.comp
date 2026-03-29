@@ -1,0 +1,65 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430, binding = 0) readonly  buffer Grad_input   { float grad_input[];   };
+layout(std430, binding = 1) readonly  buffer XNorm_buffer { float xnorm_buffer[]; };
+layout(std430, binding = 2) readonly  buffer InvStd_buf   { float invstd_buffer[]; };
+layout(std430, binding = 3) readonly  buffer Parameters   { float parameters[];   };
+layout(std430, binding = 4) writeonly buffer Grad_output  { float grad_output[];  };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint T;
+	uint D;
+} pc;
+
+layout(local_size_x = 128) in;
+
+shared float sg_partials[4];
+shared float shared_S1;   // sum(dy * gamma)
+shared float shared_S2;   // sum(dy * gamma * xnorm)
+
+void main()
+{
+	uint d     = gl_LocalInvocationID.x;
+	uint token = gl_WorkGroupID.x;
+	uint D     = pc.D;
+
+	float dy     = grad_input[token * D + d];
+	float xn     = xnorm_buffer[token * D + d];
+	float gamma  = parameters[d * 2 + 0];
+	float invstd = invstd_buffer[token];
+
+	float dy_gamma = dy * gamma;
+
+	// S1 = sum(dy * gamma)
+	float sg_S1 = subgroupAdd(dy_gamma);
+	if (subgroupElect())
+		sg_partials[gl_SubgroupID] = sg_S1;
+	barrier();
+	if (d == 0)
+	{
+		float s = 0.0;
+		for (int i = 0; i < 4; i++) s += sg_partials[i];
+		shared_S1 = s;
+	}
+	barrier();
+
+	// S2 = sum(dy * gamma * xnorm)
+	float sg_S2 = subgroupAdd(dy_gamma * xn);
+	if (subgroupElect())
+		sg_partials[gl_SubgroupID] = sg_S2;
+	barrier();
+	if (d == 0)
+	{
+		float s = 0.0;
+		for (int i = 0; i < 4; i++) s += sg_partials[i];
+		shared_S2 = s;
+	}
+	barrier();
+
+	float inv_D = 1.0 / float(D);
+	grad_output[token * D + d] = invstd * (dy_gamma - inv_D * shared_S1 - inv_D * xn * shared_S2);
+}

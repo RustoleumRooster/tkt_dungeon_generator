@@ -1,0 +1,59 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430, binding = 0) readonly  buffer Grad_input   { float grad_input[];   };
+layout(std430, binding = 1) readonly  buffer XNorm_buffer { float xnorm_buffer[]; };
+layout(std430, binding = 2) writeonly buffer Param_grad   { float param_grad[];   };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint T;
+	uint D;
+} pc;
+
+// One WG per dimension d, reduces over all B*T tokens
+layout(local_size_x = 256) in;
+
+shared float sg_dg[8];   // 256 threads / 32 subgroup = 8 subgroups
+shared float sg_db[8];
+
+void main()
+{
+	uint d  = gl_WorkGroupID.x;   // dimension [0, D)
+	uint id = gl_LocalInvocationID.x;
+	uint BT = pc.B * pc.T;
+	uint D  = pc.D;
+
+	float sum_dg = 0.0, sum_db = 0.0;
+
+	for (uint token = id; token < BT; token += 256)
+	{
+		float dy = grad_input[token * D + d];
+		float xn = xnorm_buffer[token * D + d];
+		sum_dg += dy * xn;
+		sum_db += dy;
+	}
+
+	float sg_dg_val = subgroupAdd(sum_dg);
+	float sg_db_val = subgroupAdd(sum_db);
+	if (subgroupElect())
+	{
+		sg_dg[gl_SubgroupID] = sg_dg_val;
+		sg_db[gl_SubgroupID] = sg_db_val;
+	}
+	barrier();
+
+	if (id == 0)
+	{
+		float total_dg = 0.0, total_db = 0.0;
+		for (int i = 0; i < 8; i++)
+		{
+			total_dg += sg_dg[i];
+			total_db += sg_db[i];
+		}
+		param_grad[d * 2 + 0] = total_dg;  // dγ
+		param_grad[d * 2 + 1] = total_db;  // dβ
+	}
+}
