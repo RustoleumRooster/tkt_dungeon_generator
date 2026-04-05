@@ -200,6 +200,9 @@
     <ClCompile Include="vkAttnScoresModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkSoftmaxModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="vkProjectionQKVModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
@@ -308,6 +311,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkAttnScoresModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkSoftmaxModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkProjectionQKVModule.h">
@@ -448,6 +454,9 @@
       <Filter>Resource Files\Source Files\glsl_transformer</Filter>
     </None>
     <None Include="attn_scores.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="softmax.comp">
       <Filter>Resource Files\Source Files\glsl_transformer</Filter>
     </None>
   </ItemGroup>

@@ -185,6 +185,7 @@
     <ClCompile Include="vkPosEmbedModule.cpp" />
     <ClCompile Include="vkAttentionBlock.cpp" />
     <ClCompile Include="vkAttnScoresModule.cpp" />
+    <ClCompile Include="vkSoftmaxModule.cpp" />
     <ClCompile Include="vkProjectionQKVModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkNNUpModule.cpp" />
@@ -226,6 +227,7 @@
     <ClInclude Include="vkPosEmbedModule.h" />
     <ClInclude Include="vkAttentionBlock.h" />
     <ClInclude Include="vkAttnScoresModule.h" />
+    <ClInclude Include="vkSoftmaxModule.h" />
     <ClInclude Include="vkProjectionQKVModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkNNUpModule.h" />

@@ -1,0 +1,67 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+// Softmax over the last dimension (N=64 key positions) for each query row.
+// One workgroup per row, one thread per column.
+// Input/output: [B x num_heads x M x N]
+
+layout(std430, binding = 0) readonly  buffer Input_scores  { float input_scores[];  };
+layout(std430, binding = 1) writeonly buffer Output_probs  { float output_probs[];  };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint num_heads;
+	uint M;   // query positions (64)
+	uint N;   // key positions   (64)
+} pc;
+
+layout(local_size_x = 64) in;  // one thread per key position, 64/32 = 2 subgroups
+
+shared float sg_max[2];
+shared float sg_sum[2];
+shared float shared_max;
+shared float shared_sum;
+
+void main()
+{
+	uint col = gl_LocalInvocationID.x;  // key position [0, N)
+	uint row = gl_WorkGroupID.x;        // flattened [0, B * num_heads * M)
+
+	float x = input_scores[row * pc.N + col];
+
+	// Step 1: row max (numerical stability)
+	float sg_max_val = subgroupMax(x);
+	if (subgroupElect())
+		sg_max[gl_SubgroupID] = sg_max_val;
+	barrier();
+
+	if (col == 0)
+	{
+		float m = sg_max[0];
+		for (int i = 1; i < 2; i++) m = max(m, sg_max[i]);
+		shared_max = m;
+	}
+	barrier();
+
+	// Step 2: shifted exp
+	float e = exp(x - shared_max);
+
+	// Step 3: sum of exps
+	float sg_sum_val = subgroupAdd(e);
+	if (subgroupElect())
+		sg_sum[gl_SubgroupID] = sg_sum_val;
+	barrier();
+
+	if (col == 0)
+	{
+		float s = 0.0;
+		for (int i = 0; i < 2; i++) s += sg_sum[i];
+		shared_sum = s;
+	}
+	barrier();
+
+	// Step 4: normalize
+	output_probs[row * pc.N + col] = e / shared_sum;
+}
