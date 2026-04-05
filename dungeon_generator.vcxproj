@@ -183,6 +183,8 @@
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkLayerNormModule.cpp" />
     <ClCompile Include="vkPosEmbedModule.cpp" />
+    <ClCompile Include="vkAttentionBlock.cpp" />
+    <ClCompile Include="vkAttnScoresModule.cpp" />
     <ClCompile Include="vkProjectionQKVModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
     <ClCompile Include="vkNNUpModule.cpp" />
@@ -222,6 +224,8 @@
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkLayerNormModule.h" />
     <ClInclude Include="vkPosEmbedModule.h" />
+    <ClInclude Include="vkAttentionBlock.h" />
+    <ClInclude Include="vkAttnScoresModule.h" />
     <ClInclude Include="vkProjectionQKVModule.h" />
     <ClInclude Include="vkModules.h" />
     <ClInclude Include="vkNNUpModule.h" />
@@ -237,6 +241,7 @@
     <None Include="adam.comp" />
     <None Include="add.comp" />
     <None Include="add_grad.comp" />
+    <None Include="attn_scores.comp" />
     <None Include="bce_grad.comp" />
     <None Include="bce_loss.comp" />
     <None Include="commit_loss.comp" />

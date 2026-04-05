@@ -32,6 +32,8 @@
       <UniqueIdentifier>{6020443c-da5f-4b8a-b30a-dfea72f0dd2c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Resource Files\Source Files\glsl">
+    </Filter>
+    <Filter Include="Resource Files\Source Files\glsl_transformer">
       <UniqueIdentifier>{a37fc35b-04b4-4dd2-8375-1ad035d637c0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -192,6 +194,12 @@
     <ClCompile Include="vkPosEmbedModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vkAttentionBlock.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vkAttnScoresModule.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="vkProjectionQKVModule.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
@@ -294,6 +302,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkPosEmbedModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkAttentionBlock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkAttnScoresModule.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vkProjectionQKVModule.h">
@@ -411,6 +425,30 @@
     </None>
     <None Include="conv_grad_b_reduce.comp">
       <Filter>Resource Files\Source Files\glsl</Filter>
+    </None>
+    <None Include="layernorm.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="layernorm_grad_x.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="layernorm_grad_p.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="pos_embed.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="pos_embed_grad_x.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="pos_embed_grad_p.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="matmul.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
+    </None>
+    <None Include="attn_scores.comp">
+      <Filter>Resource Files\Source Files\glsl_transformer</Filter>
     </None>
   </ItemGroup>
 </Project>

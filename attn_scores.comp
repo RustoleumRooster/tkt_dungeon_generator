@@ -1,0 +1,75 @@
+#version 450
+
+// Attention scores: scores[b, head, i, j] = softmax(Q_h @ K_h^T / sqrt(head_dim))
+// Q and K are sliced from the QKV buffer by head_n.
+// Dispatched once per head with head_n as a push constant.
+//
+// QKV buffer layout per token: [ Q (D dims) | K (D dims) | V (D dims) ]
+//   Q_h[i, k] = qkv[b, i, head_n*K + k]
+//   K_h[j, k] = qkv[b, j, D + head_n*K + k]
+//
+// M=N=64 (seq), K=head_dim=D/num_heads, tile=16x16
+
+layout(std430, binding = 0) readonly  buffer QKV_buffer    { float qkv[];    };  // [B x M x 3D]
+layout(std430, binding = 1) writeonly buffer Scores_buffer { float scores[]; };  // [B x num_heads x M x N]
+
+layout(push_constant) uniform PushConstants
+{
+	uint M;         // seq_len rows (64)
+	uint N;         // seq_len cols (64)
+	uint K;         // head_dim = D / num_heads
+	uint D;         // full embed dim (for QKV token stride = 3*D)
+	uint num_heads;
+	uint head_n;    // current head [0, num_heads)
+} pc;
+
+layout(local_size_x = 128) in;  // 16x16 tile
+
+shared float Tile_Q[16][16];
+shared float Tile_K[16][16];
+
+void main()
+{
+	uint r  = gl_LocalInvocationID.x / 16;
+	uint c  = gl_LocalInvocationID.x % 16;
+	uint c0 = gl_WorkGroupID.x * 16;  // j tile origin
+	uint r0 = gl_WorkGroupID.y * 16;  // i tile origin
+	uint b  = gl_WorkGroupID.z;
+
+	uint num_tiles = pc.K / 16;
+	uint stride    = pc.D * 3;              // floats per token in QKV
+	uint q_start   = pc.head_n * pc.K;      // Q dim offset for this head
+	uint k_start   = pc.D + pc.head_n * pc.K; // K dim offset for this head
+
+	float sum = 0.0;
+
+	for (uint t = 0; t < num_tiles; t++)
+	{
+		// Load Q tile: Q_h[r0+r, t*16+c]
+		Tile_Q[r][c] = qkv[b * pc.M * stride + (r0 + r) * stride + q_start + t * 16 + c];
+
+		// Load K tile TRANSPOSED: K_h^T[t*16+r, c0+c] = K_h[c0+c, t*16+r]
+		Tile_K[r][c] = qkv[b * pc.M * stride + (c0 + c) * stride + k_start + t * 16 + r];
+
+		barrier();
+
+		for (uint k = 0; k < 16; k++)
+			sum += Tile_Q[r][k] * Tile_K[k][c];
+
+		barrier();
+	}
+
+	// Scale by 1/sqrt(head_dim)
+	sum *= inversesqrt(float(pc.K));
+
+	// Causal mask: positions where j > i attend to the future — set to -inf
+	uint i = r0 + r;
+	uint j = c0 + c;
+	if (j > i)
+		sum = -1.0e9;
+
+	// Write scores[b, head_n, i, j]
+	scores[b * pc.num_heads * pc.M * pc.N
+	     + pc.head_n * pc.M * pc.N
+	     + i * pc.N + j] = sum;
+}
