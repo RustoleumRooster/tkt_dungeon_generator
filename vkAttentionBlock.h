@@ -4,6 +4,8 @@
 #include "vkLayerNormModule.h"
 #include "vkPosEmbedModule.h"
 #include "vkProjectionQKVModule.h"
+#include "vkAttnScoresModule.h"
+#include "vkSoftmaxModule.h"
 
 struct Attention_Block : public Workblock_Module
 {
@@ -13,11 +15,13 @@ struct Attention_Block : public Workblock_Module
 	virtual reflect::input<vkBufferResource>&  gradient_input()   override;
 	virtual reflect::output<vkBufferResource>& gradient_output()  override;
 
-	PosEmbed_Module*        pos_embed  = NULL;
-	LayerNorm_Module*       layer_norm = NULL;
-	Projection_QKV_Module*  qkv        = NULL;
+	PosEmbed_Module*        pos_embed   = NULL;
+	LayerNorm_Module*       layer_norm  = NULL;
+	Projection_QKV_Module*  qkv         = NULL;
+	Attn_Scores_Module*     attn_scores = NULL;
+	Softmax_Module*         softmax     = NULL;
 
-	// TODO: softmax, value aggregation, output projection
+	// TODO: value aggregation, output projection
 
 	REFLECT_VKMOD()
 };
