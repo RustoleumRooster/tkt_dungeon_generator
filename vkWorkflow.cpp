@@ -8,8 +8,9 @@
 #include <vulkan/vulkan.h>
 #include "vkGroupNormModule.h"
 #include "vkSkipModule.h"
-#include "vkLayerNormModule.h"
-#include "vkPosEmbedModule.h"
+#include "vkAttentionBlock.h"
+#include "vkFFNBlock.h"
+#include "vkTransposeModule.h"
 #include <cassert>
 #include <chrono>
 
@@ -97,18 +98,10 @@ void Vulkan_Workflow::make_default_workflow()
 	//=====================================================
 	// Encoder
 	//
-	
-	//1
-	reflect::connect(&create_images->output_tensor, &conv_block->input_tensor);
-	reflect::connect(&create_images->output_tensor, &conv_block->head_input());
 
-	//2
-	reflect::connect(&conv_block->tail_output(), &conv_block_2->input_tensor);
-	reflect::connect(&conv_block->tail_output(), &conv_block_2->head_input());
-
-	//3
-	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->input_tensor);
-	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->head_input());
+	reflect::connect(&create_images->output_tensor, conv_block);
+	reflect::connect(&conv_block->tail_output(),    conv_block_2);
+	reflect::connect(&conv_block_2->tail_output(),  conv_block_3);
 
 	//=====================================================
 	// Quantize
@@ -120,22 +113,11 @@ void Vulkan_Workflow::make_default_workflow()
 	// Decoder
 	//
 
-	reflect::connect(&quantize->output_tensor, &res_block->input_tensor);
-	reflect::connect(&quantize->output_tensor, &res_block->head_input());
-	reflect::connect(&quantize->output_tensor, &res_block->skip->input_b);
-
-
-	reflect::connect(&res_block->tail_output(), &up_block->input_tensor);
-	reflect::connect(&res_block->tail_output(), &up_block->head_input());
-
-	reflect::connect(&up_block->tail_output(), &up_block_2->input_tensor);
-	reflect::connect(&up_block->tail_output(), &up_block_2->head_input());
-
-	reflect::connect(&up_block_2->tail_output(), &up_block_3->input_tensor);
-	reflect::connect(&up_block_2->tail_output(), &up_block_3->head_input());
-
-	reflect::connect(&up_block_3->tail_output(), &final_block->input_tensor);
-	reflect::connect(&up_block_3->tail_output(), &final_block->head_input());
+	reflect::connect(&quantize->output_tensor,   res_block);
+	reflect::connect(&res_block->tail_output(),  up_block);
+	reflect::connect(&up_block->tail_output(),   up_block_2);
+	reflect::connect(&up_block_2->tail_output(), up_block_3);
+	reflect::connect(&up_block_3->tail_output(), final_block);
 
 	//=====================================================
 	// Loss
@@ -153,8 +135,8 @@ void Vulkan_Workflow::make_default_workflow()
 	//
 
 	// Loss → Decoder
-	reflect::connect(&bce_loss->gradient_out,         &final_block->input_grad);
-	reflect::connect(&bce_loss->gradient_out,         &final_block->gradient_input());
+	reflect::connect(&bce_loss->gradient_out,          &final_block->input_grad);
+	reflect::connect(&bce_loss->gradient_out,          &final_block->gradient_input());
 
 	reflect::connect(&final_block->gradient_output(),  &up_block_3->input_grad);
 	reflect::connect(&final_block->gradient_output(),  &up_block_3->gradient_input());
@@ -169,8 +151,6 @@ void Vulkan_Workflow::make_default_workflow()
 	reflect::connect(&up_block->gradient_output(),     &res_block->gradient_input());
 
 	// Decoder → Quantize
-	// res_block.gradient_output() = add_grad.grad_output
-	//   = skip.grad_output_b (identity path) + group_norm.grad_output (conv path)
 	reflect::connect(&res_block->gradient_output(),    &quantize->grad_input);
 
 	// Quantize → Encoder
@@ -216,12 +196,19 @@ void Vulkan_Workflow::make_transformer_workflow()
 	//=================================================
 	// Transformer
 	//
+	// quantize output: [16 x 128 x 8 x 8] NCHW
+	// transpose →      [16 x 8  x 8 x 128] NHWC
+	// Attention_Block reads as [B=16, R=8, C=8, D=128] → seq_len T=64
+	// FFN_Block input:  [16 x 64 x 1 x 128]  (attention block tail output shape)
 
-	PosEmbed_Module* pos_embed = new PosEmbed_Module();
-	pos_embed->input_dimensions = { 16,64,1,128 };
+	Transpose_NCHW_NHWC_Module* transpose = new Transpose_NCHW_NHWC_Module();
+	transpose->input_dimensions = { 16, 128, 8, 8 };
 
-	LayerNorm_Module* layer_norm = new LayerNorm_Module();
-	layer_norm->input_dimensions = { 16,64,1,128 };
+	Attention_Block* attn_block = new Attention_Block();
+	attn_block->input_dimension = { 16, 8, 8, 128 };
+
+	FFN_Block* ffn_block = new FFN_Block();
+	ffn_block->input_dimension = { 16, 64, 1, 128 };
 
 	optimizer = new Optimization_Module();
 
@@ -233,8 +220,9 @@ void Vulkan_Workflow::make_transformer_workflow()
 	Modules.push_back(VkMod_Reference{ conv_block_2 });
 	Modules.push_back(VkMod_Reference{ conv_block_3 });
 	Modules.push_back(VkMod_Reference{ quantize });
-	Modules.push_back(VkMod_Reference{ layer_norm });
-	Modules.push_back(VkMod_Reference{ pos_embed });
+	Modules.push_back(VkMod_Reference{ transpose });
+	Modules.push_back(VkMod_Reference{ attn_block });
+	Modules.push_back(VkMod_Reference{ ffn_block });
 
 	std::vector<Vulkan_Module*> append_list;
 
@@ -248,17 +236,9 @@ void Vulkan_Workflow::make_transformer_workflow()
 	// Encoder
 	//
 
-	//1
-	reflect::connect(&create_images->output_tensor, &conv_block->input_tensor);
-	reflect::connect(&create_images->output_tensor, &conv_block->head_input());
-
-	//2
-	reflect::connect(&conv_block->tail_output(), &conv_block_2->input_tensor);
-	reflect::connect(&conv_block->tail_output(), &conv_block_2->head_input());
-
-	//3
-	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->input_tensor);
-	reflect::connect(&conv_block_2->tail_output(), &conv_block_3->head_input());
+	reflect::connect(&create_images->output_tensor, conv_block);
+	reflect::connect(&conv_block->tail_output(),    conv_block_2);
+	reflect::connect(&conv_block_2->tail_output(),  conv_block_3);
 
 	//=====================================================
 	// Quantize
@@ -270,9 +250,9 @@ void Vulkan_Workflow::make_transformer_workflow()
 	// Transformer
 	//
 
-	reflect::connect(&quantize->output_tensor, &pos_embed->input_tensor);
-
-	reflect::connect(&pos_embed->output_tensor, &layer_norm->input_tensor);
+	reflect::connect(&quantize->output_tensor,     &transpose->input_tensor);
+	reflect::connect(&transpose->output_tensor,    attn_block);
+	reflect::connect(&attn_block->tail_output(),   ffn_block);
 
 	
 
@@ -290,8 +270,12 @@ void Vulkan_Workflow::make_transformer_workflow()
 	//   one to gradient_input() (the actual sub-module entry point for backward compute)
 	//
 
-	// Loss → Decoder
-	//TODO
+	// Loss → Transformer → Quantize
+	// TODO: wire loss into ffn_block once loss module is added
+	reflect::connect(&ffn_block->gradient_output(),   &attn_block->input_grad);
+	reflect::connect(&ffn_block->gradient_output(),   &attn_block->gradient_input());
+	reflect::connect(&attn_block->gradient_output(),  &transpose->grad_input);
+	reflect::connect(&transpose->grad_output,         &quantize->grad_input);
 
 	// Quantize → Encoder
 	reflect::connect(&quantize->grad_output, &conv_block_3->input_grad);

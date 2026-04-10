@@ -143,10 +143,12 @@ struct ResBlock_Module : public Workblock_Module
 
 namespace reflect
 {
-	// Overload that fans an output into all entry-point inputs of a workblock.
-	// Calls block->connect_input() so each block can route to head + any skip inputs.
+	// Overload that fans an incoming output into all entry-point inputs of a workblock.
+	// Always connects block->input_tensor (required by plan_memory pass 3), then
+	// calls block->connect_input() to route to head_input() and any skip inputs.
 	inline void connect(output<vkBufferResource>* out, Workblock_Module* block)
 	{
+		connect(out, &block->input_tensor);
 		block->connect_input(out);
 	}
 }

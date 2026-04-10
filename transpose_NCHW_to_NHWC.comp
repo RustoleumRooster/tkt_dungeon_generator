@@ -1,0 +1,42 @@
+#version 450
+
+// Transpose [B x C x H x W] → [B x H x W x C]
+// One thread per output element.
+// Input  address: b*(C*H*W) + c*(H*W) + h*W + w
+// Output address: b*(H*W*C) + h*(W*C) + w*C  + c  (== gl_GlobalInvocationID.x)
+
+layout(std430, binding = 0) readonly  buffer Input  { float input_b[];  };
+layout(std430, binding = 1) writeonly buffer Output { float output_b[]; };
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint C;  // channel / embed dim
+	uint H;  // height
+	uint W;  // width
+} pc;
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint idx   = gl_GlobalInvocationID.x;
+	uint total = pc.B * pc.C * pc.H * pc.W;
+
+	if (idx >= total)
+		return;
+
+	// Decode output position [b, h, w, c] from flat NHWC index
+	uint c   = idx % pc.C;
+	uint w   = (idx / pc.C) % pc.W;
+	uint h   = (idx / (pc.C * pc.W)) % pc.H;
+	uint b   = idx / (pc.C * pc.W * pc.H);
+
+	// Read from NCHW input
+	uint in_idx = b * (pc.C * pc.H * pc.W)
+	            + c * (pc.H * pc.W)
+	            + h * pc.W
+	            + w;
+
+	output_b[idx] = input_b[in_idx];
+}
