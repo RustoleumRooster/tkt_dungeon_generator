@@ -195,6 +195,7 @@
     <ClCompile Include="vkSiluModule.cpp" />
     <ClCompile Include="vkSkipModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
+    <ClCompile Include="vkWeightedSumVModule.cpp" />
     <ClCompile Include="vkWorkblock.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />
   </ItemGroup>
@@ -236,6 +237,7 @@
     <ClInclude Include="vkSigmoidModule.h" />
     <ClInclude Include="vkSiluModule.h" />
     <ClInclude Include="vkUtilModules.h" />
+    <ClInclude Include="vkWeightedSumVModule.h" />
     <ClInclude Include="vkWorkblock.h" />
   </ItemGroup>
   <ItemGroup>
@@ -278,6 +280,7 @@
     <None Include="silu.comp" />
     <None Include="silu_grad.comp" />
     <None Include="skip_grad.comp" />
+    <None Include="weighted_sum_V.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

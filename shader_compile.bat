@@ -53,6 +53,6 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe commit_loss.comp --target-env=vulkan1.3  --
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe adam.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/adam.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize_ema.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/quantize_ema.spv
 
-
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe weighted_sum_V.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/weighted_sum_V.spv
 
 

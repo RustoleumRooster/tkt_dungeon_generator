@@ -1,0 +1,60 @@
+#version 450
+
+layout(std430, binding = 0) readonly  buffer QKV_buffer    { float qkv[];    };  // [B x M x 3D]
+layout(std430, binding = 1) readonly buffer Scores_buffer { float scores[]; };  // [B x num_heads x M x N]
+layout(std430, binding = 2) writeonly buffer Out_buffer { float weighted_sum[]; };  // [B x num_heads x M x K]
+
+layout(push_constant) uniform PushConstants
+{
+	uint M;         // seq_len rows (64)
+	uint N;         // seq_len cols (64)
+	uint K;         // head_dim = D / num_heads
+	uint D;         // full embed dim (for QKV token stride = 3*D)
+	uint num_heads;
+	uint head_n;    // current head [0, num_heads)
+} pc; // [M x N] * [N x K] = [M x K]
+
+
+layout(local_size_x = 128) in;  // 16x16 tile
+
+shared float Tile_Score[16][16];
+shared float Tile_V[16][16];
+
+void main()
+{
+	uint r  = gl_LocalInvocationID.x / 16;
+	uint c  = gl_LocalInvocationID.x % 16;
+	uint c0 = gl_WorkGroupID.x * 16;  // j tile origin
+	uint r0 = gl_WorkGroupID.y * 16;  // i tile origin
+	uint b  = gl_WorkGroupID.z;
+
+	uint num_tiles = pc.N / 16;
+	uint stride    = pc.D * 3;              // floats per token in QKV
+	uint q_start   = pc.head_n * pc.K;      // Q dim offset for this head
+	uint k_start   = pc.D + pc.head_n * pc.K; // K dim offset for this head
+	uint v_start   = pc.D * 2 + pc.head_n * pc.K; // K dim offset for this head
+
+	float sum = 0.0;
+
+	for (uint t = 0; t < num_tiles; t++)
+	{
+		// Load Scores tile: Q_h[r0+r, t*16+c]
+		Tile_Score[r][c] = scores[b * pc.num_heads * pc.M * pc.N + 
+		pc.head_n * pc.M * pc.N + 
+		(r0 + r) * pc.N + t * 16 + c];
+
+		// Load V tile: V_h[r0+r, t*16+c]
+		Tile_V[r][c] = qkv[b * pc.M * stride + (t * 16 + r) * stride + v_start + c0 + c];
+
+		barrier();
+
+		for (uint k = 0; k < 16; k++)
+			sum += Tile_Score[r][k] * Tile_V[k][c];
+
+		barrier();
+	}
+
+	weighted_sum[b * pc.num_heads * pc.M * pc.K + 
+				pc.head_n * pc.M * pc.K +
+				(r0 + r) * pc.K + c0 + c] = sum;
+}

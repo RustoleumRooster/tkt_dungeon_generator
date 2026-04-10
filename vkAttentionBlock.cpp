@@ -49,25 +49,35 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	softmax->input_dimensions = { B, num_heads, T, T };
 	softmax->pushconstants    = { B, num_heads, T, T };
 
+	// --- Weighted Sum V: (QKV [B x T x 1 x 3D], scores [B x num_heads x T x T]) → [B x num_heads x T x head_dim] ---
+	weighted_sum_v = new WeightedSumV_Module();
+	weighted_sum_v->input_dimensions = { B, T, 1, D * 3 };
+	weighted_sum_v->num_heads        = num_heads;
+	weighted_sum_v->pushconstants    = { T, T, head_dim, D, num_heads, 0 };
+
 	modules.push_back(pos_embed);
 	modules.push_back(layer_norm);
 	modules.push_back(qkv);
 	modules.push_back(attn_scores);
 	modules.push_back(softmax);
+	modules.push_back(weighted_sum_v);
 
-	// Forward chain: input → pos_embed → layer_norm → qkv → attn_scores → softmax
+	// Forward chain: input → pos_embed → layer_norm → qkv → attn_scores → softmax → weighted_sum_v
 	// (pos_embed output [B,R,C,D] and layer_norm input [B,T,1,D] are the
 	//  same byte size — T=R*C — so the buffer is safely reinterpreted)
-	reflect::connect(&pos_embed->output_tensor,   &layer_norm->input_tensor);
-	reflect::connect(&layer_norm->output_tensor,  &qkv->input_tensor);
-	reflect::connect(&qkv->output_tensor,         &attn_scores->input_tensor);
-	reflect::connect(&attn_scores->output_tensor, &softmax->input_tensor);
+	reflect::connect(&pos_embed->output_tensor,        &layer_norm->input_tensor);
+	reflect::connect(&layer_norm->output_tensor,       &qkv->input_tensor);
+	reflect::connect(&qkv->output_tensor,              &attn_scores->input_tensor);
+	reflect::connect(&attn_scores->output_tensor,      &softmax->input_tensor);
+	reflect::connect(&qkv->output_tensor,              &weighted_sum_v->qkv_tensor);
+	reflect::connect(&softmax->output_tensor,          &weighted_sum_v->scores_tensor);
 
-	// Backward chain (incomplete — QKV backward is a stub)
-	reflect::connect(&softmax->grad_output,        &attn_scores->grad_input);
-	reflect::connect(&attn_scores->grad_output,    &qkv->grad_input);
-	reflect::connect(&qkv->grad_output,            &layer_norm->grad_input);
-	reflect::connect(&layer_norm->grad_output,     &pos_embed->grad_input);
+	// Backward chain (stubs — most backward passes not yet implemented)
+	reflect::connect(&weighted_sum_v->grad_scores,  &softmax->grad_input);
+	reflect::connect(&softmax->grad_output,         &attn_scores->grad_input);
+	reflect::connect(&attn_scores->grad_output,     &qkv->grad_input);
+	reflect::connect(&qkv->grad_output,             &layer_norm->grad_input);
+	reflect::connect(&layer_norm->grad_output,      &pos_embed->grad_input);
 
 	for (Vulkan_Module* mod : modules)
 	{
@@ -78,6 +88,6 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 }
 
 reflect::input<vkBufferResource>&  Attention_Block::head_input()      { return pos_embed->input_tensor; }
-reflect::output<vkBufferResource>& Attention_Block::tail_output()     { return softmax->output_tensor; }
-reflect::input<vkBufferResource>&  Attention_Block::gradient_input()  { return softmax->grad_input; }
+reflect::output<vkBufferResource>& Attention_Block::tail_output()     { return weighted_sum_v->output_tensor; }
+reflect::input<vkBufferResource>&  Attention_Block::gradient_input()  { return weighted_sum_v->grad_input; }
 reflect::output<vkBufferResource>& Attention_Block::gradient_output() { return pos_embed->grad_output; }
