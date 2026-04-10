@@ -179,6 +179,7 @@
     <ClCompile Include="vkComputePipeline.cpp" />
     <ClCompile Include="vkDescriptors.cpp" />
     <ClCompile Include="vkDevice.cpp" />
+    <ClCompile Include="vkFFNBlock.cpp" />
     <ClCompile Include="vkGeluModule.cpp" />
     <ClCompile Include="vkGroupNormModule.cpp" />
     <ClCompile Include="vkLayerNormModule.cpp" />
@@ -222,6 +223,7 @@
     <ClInclude Include="vkComputePipeline.h" />
     <ClInclude Include="vkDescriptors.h" />
     <ClInclude Include="vkDevice.h" />
+    <ClInclude Include="vkFFNBlock.h" />
     <ClInclude Include="vkGeluModule.h" />
     <ClInclude Include="vkGroupNormModule.h" />
     <ClInclude Include="vkLayerNormModule.h" />
