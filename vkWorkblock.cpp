@@ -441,3 +441,9 @@ reflect::input<vkBufferResource>& ResBlock_Module::head_input()      { return co
 reflect::output<vkBufferResource>& ResBlock_Module::tail_output()    { return skip->output; }
 reflect::input<vkBufferResource>& ResBlock_Module::gradient_input()  { return skip->grad_input; }
 reflect::output<vkBufferResource>& ResBlock_Module::gradient_output(){ return add_grad->grad_output; }
+
+void ResBlock_Module::connect_input(reflect::output<vkBufferResource>* out)
+{
+	reflect::connect(out, &conv1->input_tensor);
+	reflect::connect(out, &skip->input_b);
+}

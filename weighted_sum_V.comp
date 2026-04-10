@@ -2,7 +2,7 @@
 
 layout(std430, binding = 0) readonly  buffer QKV_buffer    { float qkv[];    };  // [B x M x 3D]
 layout(std430, binding = 1) readonly buffer Scores_buffer { float scores[]; };  // [B x num_heads x M x N]
-layout(std430, binding = 2) writeonly buffer Out_buffer { float weighted_sum[]; };  // [B x num_heads x M x K]
+layout(std430, binding = 2) writeonly buffer Out_buffer { float weighted_sum[]; };  // [B x M x D]
 
 layout(push_constant) uniform PushConstants
 {
@@ -30,8 +30,8 @@ void main()
 
 	uint num_tiles = pc.N / 16;
 	uint stride    = pc.D * 3;              // floats per token in QKV
-	uint q_start   = pc.head_n * pc.K;      // Q dim offset for this head
-	uint k_start   = pc.D + pc.head_n * pc.K; // K dim offset for this head
+	//uint q_start   = pc.head_n * pc.K;      // Q dim offset for this head
+	//uint k_start   = pc.D + pc.head_n * pc.K; // K dim offset for this head
 	uint v_start   = pc.D * 2 + pc.head_n * pc.K; // K dim offset for this head
 
 	float sum = 0.0;
@@ -54,7 +54,11 @@ void main()
 		barrier();
 	}
 
-	weighted_sum[b * pc.num_heads * pc.M * pc.K + 
-				pc.head_n * pc.M * pc.K +
-				(r0 + r) * pc.K + c0 + c] = sum;
+	//weighted_sum[b * pc.num_heads * pc.M * pc.K + 
+	//			pc.head_n * pc.M * pc.K +
+	//			(r0 + r) * pc.K + c0 + c] = sum;
+
+	weighted_sum[b * pc.M * pc.D + 
+				(r0 + r) * pc.D + pc.head_n * pc.K 
+				+ c0 + c] = sum;
 }

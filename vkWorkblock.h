@@ -41,6 +41,13 @@ struct Workblock_Module : public Vulkan_Module
 	virtual reflect::output<vkBufferResource>& gradient_output() { return output_tensor; }
 	virtual void backward();
 
+	// Override to fan an incoming output to all inputs that need it (e.g. head + skip).
+	// Default: connects only to head_input().
+	virtual void connect_input(reflect::output<vkBufferResource>* out)
+	{
+		reflect::connect(out, &head_input());
+	}
+
 	reflect::input<vkBufferResource> input_tensor;
 	reflect::output<vkBufferResource> output_tensor;
 	reflect::input<vkBufferResource> input_grad;
@@ -129,5 +136,17 @@ struct ResBlock_Module : public Workblock_Module
 	Silu_Module*          silu      = NULL;
 	Convolution_Module*   conv2     = NULL;
 
+	virtual void connect_input(reflect::output<vkBufferResource>* out) override;
+
 	REFLECT_VKMOD()
 };
+
+namespace reflect
+{
+	// Overload that fans an output into all entry-point inputs of a workblock.
+	// Calls block->connect_input() so each block can route to head + any skip inputs.
+	inline void connect(output<vkBufferResource>* out, Workblock_Module* block)
+	{
+		block->connect_input(out);
+	}
+}
