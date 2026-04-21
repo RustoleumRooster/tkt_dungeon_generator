@@ -698,7 +698,7 @@ public:
 	float total_forward    = 0.f;   // ms, accumulated across all passes
 	float total_backward   = 0.f;   // ms, accumulated across all passes
 
-	static reflect::Vulkan_Reflection_Factory factory;
+	static reflect::Vulkan_Reflection_Factory& getFactory();
 
 	reflect::vector2i pos{ 0,0 };
 

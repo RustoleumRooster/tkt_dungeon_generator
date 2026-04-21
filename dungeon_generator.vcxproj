@@ -186,6 +186,9 @@
     <ClCompile Include="vkPosEmbedModule.cpp" />
     <ClCompile Include="vkAttentionBlock.cpp" />
     <ClCompile Include="vkAttnScoresModule.cpp" />
+    <ClCompile Include="vkProjectionDownModule.cpp" />
+    <ClCompile Include="vkProjectionOModule.cpp" />
+    <ClCompile Include="vkProjectionUpModule.cpp" />
     <ClCompile Include="vkSoftmaxModule.cpp" />
     <ClCompile Include="vkProjectionQKVModule.cpp" />
     <ClCompile Include="vkModules.cpp" />
@@ -195,7 +198,10 @@
     <ClCompile Include="vkSigmoidModule.cpp" />
     <ClCompile Include="vkSiluModule.cpp" />
     <ClCompile Include="vkSkipModule.cpp" />
+    <ClCompile Include="vkTransposeModule.cpp" />
     <ClCompile Include="vkUtilModules.cpp" />
+    <ClCompile Include="vkVocabProjectionModule.cpp" />
+    <ClCompile Include="vkVocabSoftmaxModule.cpp" />
     <ClCompile Include="vkWeightedSumVModule.cpp" />
     <ClCompile Include="vkWorkblock.cpp" />
     <ClCompile Include="vkWorkflow.cpp" />
@@ -230,6 +236,9 @@
     <ClInclude Include="vkPosEmbedModule.h" />
     <ClInclude Include="vkAttentionBlock.h" />
     <ClInclude Include="vkAttnScoresModule.h" />
+    <ClInclude Include="vkProjectionDownModule.h" />
+    <ClInclude Include="vkProjectionOModule.h" />
+    <ClInclude Include="vkProjectionUpModule.h" />
     <ClInclude Include="vkSoftmaxModule.h" />
     <ClInclude Include="vkProjectionQKVModule.h" />
     <ClInclude Include="vkModules.h" />
@@ -238,7 +247,10 @@
     <ClInclude Include="vkQuantizeModule.h" />
     <ClInclude Include="vkSigmoidModule.h" />
     <ClInclude Include="vkSiluModule.h" />
+    <ClInclude Include="vkTransposeModule.h" />
     <ClInclude Include="vkUtilModules.h" />
+    <ClInclude Include="vkVocabProjectionModule.h" />
+    <ClInclude Include="vkVocabSoftmaxModule.h" />
     <ClInclude Include="vkWeightedSumVModule.h" />
     <ClInclude Include="vkWorkblock.h" />
   </ItemGroup>

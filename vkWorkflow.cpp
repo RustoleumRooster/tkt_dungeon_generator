@@ -11,6 +11,8 @@
 #include "vkAttentionBlock.h"
 #include "vkFFNBlock.h"
 #include "vkTransposeModule.h"
+#include "vkVocabProjectionModule.h"
+#include "vkVocabSoftmaxModule.h"
 #include <cassert>
 #include <chrono>
 
@@ -210,6 +212,14 @@ void Vulkan_Workflow::make_transformer_workflow()
 	FFN_Block* ffn_block = new FFN_Block();
 	ffn_block->input_dimension = { 16, 64, 1, 128 };
 
+	// ffn output: [16 x 64 x 1 x 128]  → project to vocab → softmax over vocab
+	Vocab_Projection_Module* vocab_proj = new Vocab_Projection_Module();
+	vocab_proj->input_dimensions = { 16, 64, 1, 128 };
+	vocab_proj->vocab_size = 512;
+
+	Vocab_Softmax_Module* vocab_softmax = new Vocab_Softmax_Module();
+	vocab_softmax->input_dimensions = { 16, 1, 64, 512 };
+
 	optimizer = new Optimization_Module();
 
 	// Optimizer goes first so the reverse backward loop runs it last,
@@ -223,6 +233,8 @@ void Vulkan_Workflow::make_transformer_workflow()
 	Modules.push_back(VkMod_Reference{ transpose });
 	Modules.push_back(VkMod_Reference{ attn_block });
 	Modules.push_back(VkMod_Reference{ ffn_block });
+	Modules.push_back(VkMod_Reference{ vocab_proj });
+	Modules.push_back(VkMod_Reference{ vocab_softmax });
 
 	std::vector<Vulkan_Module*> append_list;
 
@@ -250,17 +262,18 @@ void Vulkan_Workflow::make_transformer_workflow()
 	// Transformer
 	//
 
-	reflect::connect(&quantize->output_tensor,     &transpose->input_tensor);
-	reflect::connect(&transpose->output_tensor,    attn_block);
-	reflect::connect(&attn_block->tail_output(),   ffn_block);
-
-	
+	reflect::connect(&quantize->output_tensor,       &transpose->input_tensor);
+	reflect::connect(&transpose->output_tensor,      attn_block);
+	reflect::connect(&attn_block->tail_output(),     ffn_block);
+	reflect::connect(&ffn_block->tail_output(),      &vocab_proj->input_tensor);
+	reflect::connect(&vocab_proj->output_tensor,     &vocab_softmax->input_tensor);
 
 	//=====================================================
 	// Loss
 	//
+	// TODO: wire loss → vocab_softmax->grad_input once loss module is added
 
-	
+
 
 	//=====================================================
 	// Backward Pass
@@ -270,8 +283,11 @@ void Vulkan_Workflow::make_transformer_workflow()
 	//   one to gradient_input() (the actual sub-module entry point for backward compute)
 	//
 
-	// Loss → Transformer → Quantize
-	// TODO: wire loss into ffn_block once loss module is added
+	// Loss → Vocab → Transformer → Quantize
+	// TODO: wire loss → vocab_softmax grad_input once loss module is added
+	reflect::connect(&vocab_softmax->grad_output,     &vocab_proj->grad_input);
+	reflect::connect(&vocab_proj->grad_output,        &ffn_block->input_grad);
+	reflect::connect(&vocab_proj->grad_output,        &ffn_block->gradient_input());
 	reflect::connect(&ffn_block->gradient_output(),   &attn_block->input_grad);
 	reflect::connect(&ffn_block->gradient_output(),   &attn_block->gradient_input());
 	reflect::connect(&attn_block->gradient_output(),  &transpose->grad_input);

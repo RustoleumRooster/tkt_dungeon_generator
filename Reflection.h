@@ -846,8 +846,8 @@ struct TypeDescriptor_Typeless_Reference : TypeDescriptor {
             void** ptr = (void**)obj;
             std::getline(f, line, '\0');
 
-            using TD = typename decltype(T::factory)::descriptor_type;
-            TD* tD = (TD*)T::factory.getNodeTypeDescriptorByName(line);
+            using TD = typename std::remove_reference<decltype(T::getFactory())>::type::descriptor_type;
+            TD* tD = (TD*)T::getFactory().getNodeTypeDescriptorByName(line);
 
             *ptr = tD->getNew();
             while (tD)

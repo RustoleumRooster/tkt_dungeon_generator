@@ -46,7 +46,11 @@ float random_f32()
 
 static std::vector<Vulkan_Module*>* all_vulkan_modules = NULL;
 
-reflect::Vulkan_Reflection_Factory Vulkan_Module::factory{};
+reflect::Vulkan_Reflection_Factory& Vulkan_Module::getFactory()
+{
+	static reflect::Vulkan_Reflection_Factory factory;
+	return factory;
+}
 
 vector<Vulkan_Module*>* get_all_vk_modules()
 {
@@ -849,7 +853,7 @@ namespace reflect
 {
 	TypeDescriptor_VkMod_Struct::TypeDescriptor_VkMod_Struct(void (*init)(TypeDescriptor_Struct*)) : reflect::TypeDescriptor_Struct(init)
 	{
-		Vulkan_Module::factory.addType(this);
+		Vulkan_Module::getFactory().addType(this);
 	}
 }
 
