@@ -15,7 +15,7 @@ layout(push_constant) uniform PushConstants
 	uint K; //128
 } pc;		// [M x K] * [K x N] = [M x N]
 
-layout(local_size_x = 128) in;  // 16x16
+layout(local_size_x = 256) in;  // 16x16
 
 shared float Tile_A[16][16];
 shared float Tile_B[16][16];

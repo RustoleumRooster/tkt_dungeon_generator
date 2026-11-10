@@ -1,0 +1,62 @@
+#version 450
+
+// One thread per output element.
+
+//MATMUL NT (A @ B^T) with 16 x 16 tiles
+//Assumes batched Matrix_A, each multiplying against Matrix_B^T, producing batched Matrix_C
+
+layout(std430, binding = 0) readonly  buffer Matrix_A  { float mat_A[];  }; //[B x M x K]
+layout(std430, binding = 1) readonly  buffer Matrix_B  { float mat_B[];  }; //[N x K]  Transpose -> [K x N]
+layout(std430, binding = 2) writeonly buffer Matrix_C  { float mat_C[];	 };	//[B x M x N]
+
+
+layout(push_constant) uniform PushConstants
+{
+	uint M; 
+	uint N; 
+	uint K; 
+} pc;		// [M x K] * [N x K]^T = [M x N]
+
+layout(local_size_x = 256) in;  // 16x16
+
+shared float Tile_A[16][16];
+shared float Tile_B[16][17];
+
+void main()
+{
+	uint r			= gl_LocalInvocationID.x / 16;  
+	uint c			= gl_LocalInvocationID.x % 16;  
+	uint c0			= gl_WorkGroupID.x * 16;         
+	uint r0			= gl_WorkGroupID.y * 16;         
+	uint B			= gl_WorkGroupID.z;     
+	uint n_tiles	= pc.K / 16;
+
+	float sum = 0.0;
+
+	for(int t=0; t<n_tiles; t++)
+	{
+		//Load A and B
+
+		Tile_A[r][c] = mat_A[B * (pc.M * pc.K)	+ (r0 + r) * pc.K + (t * 16) + c];
+
+		//Tile_B[r][c] = mat_B[ ((t * 16) + r) * pc.N	+ c0 + c]; //original. non transposed
+		Tile_B[c][r] = mat_B[ (c0 + r) * pc.K + (t * 16) + c]; //transposed, with r and c indices swapped
+
+		barrier();
+
+
+		//sum over k=16 multiplications
+
+		for(int k=0; k<16; k++) 
+		{
+			sum += Tile_A[r][k] * Tile_B[k][c];
+		}
+
+		barrier();
+		
+	}
+	
+	//write to our output position
+
+	mat_C[B * (pc.M * pc.N) + (r0 + r) * pc.N + c0 + c] = sum;
+}
