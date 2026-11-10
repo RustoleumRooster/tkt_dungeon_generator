@@ -55,4 +55,6 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe quantize_ema.comp --target-env=vulkan1.3  -
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe weighted_sum_V.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/weighted_sum_V.spv
 
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe matmul_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/matmul_grad.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe matmul_grad_w.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/matmul_grad_w.spv
 

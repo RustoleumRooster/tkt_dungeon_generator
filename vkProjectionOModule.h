@@ -32,11 +32,27 @@ struct Projection_O_Module : public Vulkan_Module
 		u32 K;  // embed_dim (128)
 	};
 
+	struct pushconstant_backward_struct
+	{
+		u32 M;  // embed_dim
+		u32 N;  // embed_dim 
+		u32 K;  // seq_len
+		u32 B;	// batch_size - needed so we can sum dL/dW over batches 
+	};
+
 	pushconstant_struct pushconstants
 	{
 		64,   // M
 		128,  // N
 		128,  // K
+	};
+
+	pushconstant_backward_struct pushconstants_b
+	{
+		128,   // M
+		128,  // N
+		64,  // K
+		16	  //B
 	};
 
 	struct Pass
@@ -51,7 +67,9 @@ struct Projection_O_Module : public Vulkan_Module
 		void cleanup(VkDevice);
 	};
 
-	Pass fwd_pass;  // matmul.spv — [B x M x D] * [D x D] = [B x M x D]
+	Pass fwd_pass;   // matmul.spv — [B x M x D] * [D x D] = [B x M x D]
+	Pass bwd_pass_1; // dL/dX
+	Pass bwd_pass_2; // dL/dW
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -61,6 +79,8 @@ struct Projection_O_Module : public Vulkan_Module
 	virtual void initialize_parameters() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward_grad(VkCommandBuffer);
+	void dispatch_backward_grad_w(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>     input_tensor;   // [B x M x D]  (concatenated heads)
 	reflect::output<vkBufferResource>    output_tensor;  // [B x M x D]
