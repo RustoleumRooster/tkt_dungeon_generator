@@ -40,6 +40,29 @@ struct Projection_Up_Module : public Vulkan_Module
 		128,  // K
 	};
 
+	struct pushconstant_backward_struct
+	{
+		u32 M;  // input_dim
+		u32 N;  // output_dim
+		u32 K;  // seq_len
+		u32 B;  // batch size
+	};
+
+	pushconstant_struct pushconstants_b_x
+	{
+		64,   // M
+		128,  // N
+		512,  // K
+	};
+
+	pushconstant_backward_struct pushconstants_b_w
+	{
+		128,  // M
+		512,  // N
+		64,   // K
+		16	  // B
+	};
+
 	struct Pass
 	{
 		VkPipelineLayout                          pipelineLayout;
@@ -53,6 +76,8 @@ struct Projection_Up_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;  // matmul.spv — [B x M x K] * [K x N] = [B x M x N]
+	Pass bwd_pass_1; // dL/dX
+	Pass bwd_pass_2; // dL/dW
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -62,6 +87,8 @@ struct Projection_Up_Module : public Vulkan_Module
 	virtual void initialize_parameters() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward_grad(VkCommandBuffer);
+	void dispatch_backward_grad_w(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>     input_tensor;   // [B x M x K]
 	reflect::output<vkBufferResource>    output_tensor;  // [B x M x N]

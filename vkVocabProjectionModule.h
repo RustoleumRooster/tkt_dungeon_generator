@@ -35,6 +35,17 @@ struct Vocab_Projection_Module : public Vulkan_Module
 
 	pushconstant_struct pushconstants{ 64, 512, 128 };
 
+	struct pushconstant_backward_struct
+	{
+		u32 M;  // embed_dim
+		u32 N;  // vocab_size
+		u32 K;  // seq_len
+		u32 B;  // batch size
+	};
+
+	pushconstant_struct          pushconstants_b_x{ 64, 128, 512 };       // dL/dX: M=seq_len, N=embed_dim, K=vocab_size
+	pushconstant_backward_struct pushconstants_b_w{ 128, 512, 64, 16 };   // dL/dW
+
 	struct Pass
 	{
 		VkPipelineLayout                          pipelineLayout;
@@ -48,6 +59,8 @@ struct Vocab_Projection_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;  // matmul.spv — [B x M x K] * [K x N] = [B x M x N]
+	Pass bwd_pass_1; // dL/dX
+	Pass bwd_pass_2; // dL/dW
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -57,6 +70,8 @@ struct Vocab_Projection_Module : public Vulkan_Module
 	virtual void initialize_parameters() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward_grad(VkCommandBuffer);
+	void dispatch_backward_grad_w(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>     input_tensor;   // [B x M x K]
 	reflect::output<vkBufferResource>    output_tensor;  // [B x M x vocab_size]
