@@ -67,6 +67,15 @@ void Projection_QKV_Module::setDimensions()
 	pushconstants.M = M;
 	pushconstants.N = N;
 	pushconstants.K = K;
+
+	pushconstants_b_w.M = K;	//swap M and K
+	pushconstants_b_w.N = N;
+	pushconstants_b_w.K = M;
+	pushconstants_b_w.B = B;
+
+	pushconstants_b_x.M = M;	//swap N and K
+	pushconstants_b_x.N = K;
+	pushconstants_b_x.K = N;
 }
 
 void Projection_QKV_Module::initialize_parameters()
@@ -99,12 +108,32 @@ void Projection_QKV_Module::startup()
 	fwd_pass.createPipeline(m_device, "shaders/matmul.spv", r);
 	output_tensor.ready = true;
 
+	// bwd_pass_1: grad in(0), weight(1), grad out(2)
+	bwd_pass_1.bindings.resize(3);
+	bwd_pass_1.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass_1.bindings[1] = parameters.X->getDescriptorSetLayout(1);
+	bwd_pass_1.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass_1.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_1.bindings);
+	bwd_pass_1.createPipeline(m_device, "shaders/matmul_grad.spv", r);
+
+	// bwd_pass_2: input(0), grad in(1), weight grad(2)
+	bwd_pass_2.bindings.resize(3);
+	bwd_pass_2.bindings[0] = input_tensor.X->getDescriptorSetLayout(0);
+	bwd_pass_2.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
+	bwd_pass_2.bindings[2] = parameters.Y->getDescriptorSetLayout(2);
+	bwd_pass_2.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_2.bindings);
+
+	VkPushConstantRange r_b{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_backward_struct) };
+	bwd_pass_2.createPipeline(m_device, "shaders/matmul_grad_w.spv", r_b);
+
 	log() << "QKV projection startup complete\n";
 }
 
 void Projection_QKV_Module::cleanup_passes()
 {
 	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass_1.cleanup(m_device->getDevice());
+	bwd_pass_2.cleanup(m_device->getDevice());
 }
 
 //============================================================
@@ -135,6 +164,60 @@ void Projection_QKV_Module::dispatch_forward(VkCommandBuffer cmd)
 	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
 }
 
+void Projection_QKV_Module::dispatch_backward_grad(VkCommandBuffer cmd)
+{
+	//=========================================
+	//PASS 1: dL/dX, compute gradient for backprop
+
+	MyDescriptorWriter writer(*bwd_pass_1.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_1.descriptorSets.resize(1);
+	writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, parameters.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass_1.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_1.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_1.pipelineLayout, 0, 1, &bwd_pass_1.descriptorSets[0], 0, 0);
+
+	// dispatch (N/16, M/16, B)
+	uint32_t wg_x = pushconstants_b_x.N / 16;
+	uint32_t wg_y = pushconstants_b_x.M / 16;
+	uint32_t wg_z = input_dimensions.B;
+	log() << "QKV bwd 1: dispatch (" << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_1.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants_b_x);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
+void Projection_QKV_Module::dispatch_backward_grad_w(VkCommandBuffer cmd)
+{
+	//==========================================
+	//PASS 2: dL/dW, compute weight gradients
+
+	MyDescriptorWriter writer2(*bwd_pass_2.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_2.descriptorSets.resize(1);
+	writer2.writeBuffer(0, input_tensor.X->getDescriptorBufferInfo());
+	writer2.writeBuffer(1, grad_input.X->getDescriptorBufferInfo());
+	writer2.writeBuffer(2, parameters.Y->getDescriptorBufferInfo());
+	writer2.build(bwd_pass_2.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_2.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_2.pipelineLayout, 0, 1, &bwd_pass_2.descriptorSets[0], 0, 0);
+
+	// dispatch (N/16, M/16, 1)
+	uint32_t wg_x = pushconstants_b_w.N / 16;
+	uint32_t wg_y = pushconstants_b_w.M / 16;
+	uint32_t wg_z = 1;
+	log() << "QKV bwd 2: dispatch (" << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_2.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_backward_struct), &pushconstants_b_w);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
 //============================================================
 // forward / backward
 //
@@ -150,7 +233,17 @@ void Projection_QKV_Module::forward()
 
 void Projection_QKV_Module::backward()
 {
-	// TODO: matmul backward
-	// dL/dW = input^T @ grad_input   — [K x M] * [M x N] = [K x N]
 	// dL/dX = grad_input @ W^T       — [M x N] * [N x K] = [M x K]
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_grad(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_1.descriptorSets);
+
+	// dL/dW = input^T @ grad_input   — [K x M] * [M x N] = [K x N]
+	cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_grad_w(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_2.descriptorSets);
 }

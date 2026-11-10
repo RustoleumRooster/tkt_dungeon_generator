@@ -241,5 +241,4 @@ void Projection_O_Module::backward()
 	m_device->endSingleTimeCommands(cmd);
 	vkDeviceWaitIdle(m_device->getDevice());
 	m_DescriptorPool->freeDescriptorsSets(bwd_pass_2.descriptorSets);
-	
 }
