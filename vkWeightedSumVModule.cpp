@@ -62,7 +62,7 @@ void WeightedSumV_Module::setDimensions()
 	u32 K = D / num_heads;           // head_dim
 	u32 N = M;                       // key positions == query positions
 
-	output_tensor.dimensions = { B, num_heads, M, K };
+	output_tensor.dimensions = { B, M, D, 1 };
 	grad_scores.dimensions   = { B, num_heads, M, N };
 	grad_qkv.dimensions      = input_dimensions;
 
@@ -70,7 +70,6 @@ void WeightedSumV_Module::setDimensions()
 	pushconstants.N         = N;
 	pushconstants.K         = K;
 	pushconstants.D         = D;
-	pushconstants.num_heads = num_heads;
 }
 
 void WeightedSumV_Module::startup()
@@ -86,6 +85,14 @@ void WeightedSumV_Module::startup()
 	fwd_pass.createPipeline(m_device, "shaders/weighted_sum_V.spv", r);
 	output_tensor.ready = true;
 
+	// dO(0), scores(1), grad_qkv(2)
+	bwd_pass_v.bindings.resize(3);
+	bwd_pass_v.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass_v.bindings[1] = scores_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass_v.bindings[2] = grad_qkv.X->getDescriptorSetLayout(2);
+	bwd_pass_v.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
+	bwd_pass_v.createPipeline(m_device, "shaders/weighted_sum_V.spv", r);
+
 	log() << "WeightedSumV startup complete\n";
 }
 
@@ -98,7 +105,7 @@ void WeightedSumV_Module::cleanup_passes()
 // Dispatch helper
 //
 
-void WeightedSumV_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
+void WeightedSumV_Module::dispatch_forward(VkCommandBuffer cmd)
 {
 	MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 	fwd_pass.descriptorSets.resize(1);
@@ -111,13 +118,11 @@ void WeightedSumV_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	pushconstants.head_n = head_n;
-
-	// dispatch (K/16, M/16, B) — output tile is [M x K] per (batch, head)
+	// dispatch (K/16, M/16, B * num_heads) — output tile is [M x K] per (batch, head)
 	uint32_t wg_x = pushconstants.K / 16;
 	uint32_t wg_y = pushconstants.M / 16;
-	uint32_t wg_z = input_dimensions.B;
-	log() << "WeightedSumV head " << head_n << ": dispatch ("
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "WeightedSumV : dispatch ("
 	      << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
 
 	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
@@ -131,14 +136,11 @@ void WeightedSumV_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
 
 void WeightedSumV_Module::forward()
 {
-	for (u32 h = 0; h < num_heads; h++)
-	{
-		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
-		dispatch_forward(cmd, h);
-		m_device->endSingleTimeCommands(cmd);
-		vkDeviceWaitIdle(m_device->getDevice());
-		m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-	}
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_forward(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void WeightedSumV_Module::backward()

@@ -93,7 +93,7 @@ void Attn_Scores_Module::cleanup_passes()
 // Dispatch helper
 //
 
-void Attn_Scores_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
+void Attn_Scores_Module::dispatch_forward(VkCommandBuffer cmd)
 {
 	MyDescriptorWriter writer(*fwd_pass.descriptorSetLayout, *m_DescriptorPool);
 	fwd_pass.descriptorSets.resize(1);
@@ -105,13 +105,11 @@ void Attn_Scores_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
 		fwd_pass.pipelineLayout, 0, 1, &fwd_pass.descriptorSets[0], 0, 0);
 
-	pushconstants.head_n = head_n;
-
-	// dispatch (N/16, M/16, B) — one tile per workgroup
+	// dispatch (N/16, M/16, B * n_heads) — one tile per workgroup
 	uint32_t wg_x = pushconstants.N / 16;
 	uint32_t wg_y = pushconstants.M / 16;
-	uint32_t wg_z = input_dimensions.B;
-	log() << "Attn_Scores head " << head_n << ": dispatch ("
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "Attn_Scores dispatch ("
 	      << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
 
 	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
@@ -125,14 +123,11 @@ void Attn_Scores_Module::dispatch_forward(VkCommandBuffer cmd, u32 head_n)
 
 void Attn_Scores_Module::forward()
 {
-	for (u32 h = 0; h < num_heads; h++)
-	{
-		VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
-		dispatch_forward(cmd, h);
-		m_device->endSingleTimeCommands(cmd);
-		vkDeviceWaitIdle(m_device->getDevice());
-		m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
-	}
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_forward(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(fwd_pass.descriptorSets);
 }
 
 void Attn_Scores_Module::backward()

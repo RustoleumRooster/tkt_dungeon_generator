@@ -33,7 +33,6 @@ struct Attn_Scores_Module : public Vulkan_Module
 		u32 K;         // head_dim = D / num_heads (32)
 		u32 D;         // full embed dim (128)
 		u32 num_heads; // 4
-		u32 head_n;    // set per-dispatch
 	};
 
 	pushconstant_struct pushconstants
@@ -43,7 +42,6 @@ struct Attn_Scores_Module : public Vulkan_Module
 		32,   // K (head_dim)
 		128,  // D
 		4,    // num_heads
-		0,    // head_n (set in forward loop)
 	};
 
 	struct Pass
@@ -66,7 +64,7 @@ struct Attn_Scores_Module : public Vulkan_Module
 	virtual void backward() override;
 	virtual void cleanup_passes() override;
 
-	void dispatch_forward(VkCommandBuffer, u32 head_n);
+	void dispatch_forward(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>  input_tensor;   // QKV [B x M x 3D]
 	reflect::output<vkBufferResource> output_tensor;  // scores [B x num_heads x M x N]

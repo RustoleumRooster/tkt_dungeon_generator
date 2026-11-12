@@ -33,7 +33,6 @@ struct WeightedSumV_Module : public Vulkan_Module
 		u32 K;          // head_dim = D / num_heads
 		u32 D;          // full embed dim
 		u32 num_heads;
-		u32 head_n;     // set per-dispatch
 	};
 
 	pushconstant_struct pushconstants
@@ -43,7 +42,6 @@ struct WeightedSumV_Module : public Vulkan_Module
 		32,   // K
 		128,  // D
 		4,    // num_heads
-		0,    // head_n
 	};
 
 	struct Pass
@@ -59,6 +57,8 @@ struct WeightedSumV_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;  // weighted_sum_V.spv — out[b, h, i, k] = sum_j scores[b, h, i, j] * V_h[j, k]
+	Pass bwd_pass_v;
+	Pass bwd_pass_a;
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -66,11 +66,11 @@ struct WeightedSumV_Module : public Vulkan_Module
 	virtual void backward() override;
 	virtual void cleanup_passes() override;
 
-	void dispatch_forward(VkCommandBuffer, u32 head_n);
+	void dispatch_forward(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>  qkv_tensor;     // QKV [B x M x 3D],              binding 0
 	reflect::input<vkBufferResource>  scores_tensor;  // scores [B x num_heads x M x N], binding 1
-	reflect::output<vkBufferResource> output_tensor;  // result [B x num_heads x M x K], binding 2
+	reflect::output<vkBufferResource> output_tensor;  // result [B x M x D], binding 2
 
 	reflect::input<vkBufferResource>  grad_input;     // incoming gradient [B x num_heads x M x K]
 	reflect::output<vkBufferResource> grad_scores;    // gradient w.r.t. scores
