@@ -67,6 +67,8 @@ struct WeightedSumV_Module : public Vulkan_Module
 	virtual void cleanup_passes() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward_v(VkCommandBuffer);
+	void dispatch_backward_a(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>  qkv_tensor;     // QKV [B x M x 3D],              binding 0
 	reflect::input<vkBufferResource>  scores_tensor;  // scores [B x num_heads x M x N], binding 1

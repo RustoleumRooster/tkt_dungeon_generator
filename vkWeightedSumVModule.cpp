@@ -70,6 +70,7 @@ void WeightedSumV_Module::setDimensions()
 	pushconstants.N         = N;
 	pushconstants.K         = K;
 	pushconstants.D         = D;
+	pushconstants.num_heads = num_heads;
 }
 
 void WeightedSumV_Module::startup()
@@ -87,11 +88,19 @@ void WeightedSumV_Module::startup()
 
 	// dO(0), scores(1), grad_qkv(2)
 	bwd_pass_v.bindings.resize(3);
-	bwd_pass_v.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
-	bwd_pass_v.bindings[1] = scores_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass_v.bindings[0] = scores_tensor.X->getDescriptorSetLayout(0);
+	bwd_pass_v.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
 	bwd_pass_v.bindings[2] = grad_qkv.X->getDescriptorSetLayout(2);
-	bwd_pass_v.descriptorSetLayout = new MyDescriptorSetLayout(m_device, fwd_pass.bindings);
-	bwd_pass_v.createPipeline(m_device, "shaders/weighted_sum_V.spv", r);
+	bwd_pass_v.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_v.bindings);
+	bwd_pass_v.createPipeline(m_device, "shaders/weighted_sum_V_grad_v.spv", r);
+
+	// dO(0), qkv(1), grad_scores(2)
+	bwd_pass_a.bindings.resize(3);
+	bwd_pass_a.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass_a.bindings[1] = qkv_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass_a.bindings[2] = grad_scores.X->getDescriptorSetLayout(2);
+	bwd_pass_a.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_a.bindings);
+	bwd_pass_a.createPipeline(m_device, "shaders/weighted_sum_V_grad_a.spv", r);
 
 	log() << "WeightedSumV startup complete\n";
 }
@@ -99,6 +108,8 @@ void WeightedSumV_Module::startup()
 void WeightedSumV_Module::cleanup_passes()
 {
 	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass_v.cleanup(m_device->getDevice());
+	bwd_pass_a.cleanup(m_device->getDevice());
 }
 
 //============================================================
@@ -122,10 +133,60 @@ void WeightedSumV_Module::dispatch_forward(VkCommandBuffer cmd)
 	uint32_t wg_x = pushconstants.K / 16;
 	uint32_t wg_y = pushconstants.M / 16;
 	uint32_t wg_z = input_dimensions.B * num_heads;
-	log() << "WeightedSumV : dispatch ("
+	log() << "WeightedSumV fwd: dispatch ("
 	      << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
 
 	vkCmdPushConstants(cmd, fwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
+void WeightedSumV_Module::dispatch_backward_v(VkCommandBuffer cmd)
+{
+	MyDescriptorWriter writer(*bwd_pass_v.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_v.descriptorSets.resize(1);
+	writer.writeBuffer(0, scores_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_qkv.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass_v.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_v.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_v.pipelineLayout, 0, 1, &bwd_pass_v.descriptorSets[0], 0, 0);
+
+	// dispatch (K/16, M/16, B * num_heads) — output tile is [M x K] per (batch, head)
+	uint32_t wg_x = pushconstants.K / 16;
+	uint32_t wg_y = pushconstants.M / 16;
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "WeightedSumV bwd 1: dispatch ("
+		<< wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_v.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
+void WeightedSumV_Module::dispatch_backward_a(VkCommandBuffer cmd)
+{
+	MyDescriptorWriter writer(*bwd_pass_a.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_a.descriptorSets.resize(1);
+	writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, qkv_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_scores.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass_a.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_a.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_a.pipelineLayout, 0, 1, &bwd_pass_a.descriptorSets[0], 0, 0);
+
+	// dispatch (K/16, M/16, B * num_heads) — output tile is [M x K] per (batch, head)
+	uint32_t wg_x = pushconstants.N / 16;
+	uint32_t wg_y = pushconstants.M / 16;
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "WeightedSumV bwd 2: dispatch ("
+		<< wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_a.pipelineLayout,
 		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
 	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
 }
@@ -145,5 +206,15 @@ void WeightedSumV_Module::forward()
 
 void WeightedSumV_Module::backward()
 {
-	// TODO
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_v(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_v.descriptorSets);
+
+	cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_a(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_a.descriptorSets);
 }
