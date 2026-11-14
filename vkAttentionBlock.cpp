@@ -42,7 +42,7 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	attn_scores = new Attn_Scores_Module();
 	attn_scores->input_dimensions = { B, T, 1, D * 3 };
 	attn_scores->num_heads        = num_heads;
-	attn_scores->pushconstants    = { T, T, head_dim, D, num_heads, 0 };
+	attn_scores->pushconstants    = { T, T, head_dim, D, num_heads };
 
 	// --- Softmax: [B x num_heads x T x T] → [B x num_heads x T x T] ---
 	softmax = new Softmax_Module();
@@ -53,7 +53,7 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	weighted_sum_v = new WeightedSumV_Module();
 	weighted_sum_v->input_dimensions = { B, T, 1, D * 3 };
 	weighted_sum_v->num_heads        = num_heads;
-	weighted_sum_v->pushconstants    = { T, T, head_dim, D, num_heads, 0 };
+	weighted_sum_v->pushconstants    = { T, T, head_dim, D, num_heads };
 
 	// --- Output Projection: [B x T x D] * [D x D] → [B x T x D] ---
 	// Input is the weighted_sum_v output reinterpreted as [B x T x D]

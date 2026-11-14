@@ -22,6 +22,8 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe layernorm_grad_p.comp --target-env=vulkan1.
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe matmul.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/matmul.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe attn_scores.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/attn_scores.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe attn_scores_grad_q.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/attn_scores_grad_q.spv
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe attn_scores_grad_k.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/attn_scores_grad_k.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe softmax.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/softmax.spv
 
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe groupnorm.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/groupnorm.spv

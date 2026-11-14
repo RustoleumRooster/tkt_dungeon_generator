@@ -56,7 +56,9 @@ struct Attn_Scores_Module : public Vulkan_Module
 		void cleanup(VkDevice);
 	};
 
-	Pass fwd_pass;  // attn_scores.spv — scores[b, h, i, j] = Q_h @ K_h^T / sqrt(head_dim)
+	Pass fwd_pass;    // attn_scores.spv        — scores[b, h, i, j] = Q_h @ K_h^T / sqrt(head_dim)
+	Pass bwd_pass_q;  // attn_scores_grad_q.spv — dQ_h = dS_h   @ K_h / sqrt(head_dim)
+	Pass bwd_pass_k;  // attn_scores_grad_k.spv — dK_h = dS_h^T @ Q_h / sqrt(head_dim)
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -65,11 +67,13 @@ struct Attn_Scores_Module : public Vulkan_Module
 	virtual void cleanup_passes() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward_q(VkCommandBuffer);
+	void dispatch_backward_k(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>  input_tensor;   // QKV [B x M x 3D]
 	reflect::output<vkBufferResource> output_tensor;  // scores [B x num_heads x M x N]
-	reflect::input<vkBufferResource>  grad_input;
-	reflect::output<vkBufferResource> grad_output;
+	reflect::input<vkBufferResource>  grad_input;     // dS (pre-softmax score grad) [B x num_heads x M x N]
+	reflect::output<vkBufferResource> grad_output;    // dQKV [B x M x 3D] — Q and K slices written here
 
 	REFLECT_VKMOD()
 };

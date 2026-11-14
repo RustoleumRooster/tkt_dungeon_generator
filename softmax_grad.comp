@@ -28,8 +28,8 @@ void main()
 	uint col = gl_LocalInvocationID.x;  // key position [0, N)
 	uint row = gl_WorkGroupID.x;        // flattened [0, B * num_heads * M)
 
-	float p = output_probs[row * N + col];
-	float dp = input_grad[row * N + col];
+	float p = output_probs[row * pc.N + col];
+	float dp = input_grad[row * pc.N + col];
 	float addend  = p * dp;
 
 	float D_i_sg_val = subgroupAdd(addend);

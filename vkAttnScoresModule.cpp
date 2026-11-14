@@ -81,12 +81,31 @@ void Attn_Scores_Module::startup()
 	fwd_pass.createPipeline(m_device, "shaders/attn_scores.spv", r);
 	output_tensor.ready = true;
 
+	// bwd_pass_q: dS(0), qkv(1), grad_qkv(2) — writes Q slice of grad_output
+	bwd_pass_q.bindings.resize(3);
+	bwd_pass_q.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass_q.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass_q.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass_q.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_q.bindings);
+	bwd_pass_q.createPipeline(m_device, "shaders/attn_scores_grad_q.spv", r);
+
+	// bwd_pass_k: dS(0), qkv(1), grad_qkv(2) — writes K slice of grad_output
+	bwd_pass_k.bindings.resize(3);
+	bwd_pass_k.bindings[0] = grad_input.X->getDescriptorSetLayout(0);
+	bwd_pass_k.bindings[1] = input_tensor.X->getDescriptorSetLayout(1);
+	bwd_pass_k.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass_k.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass_k.bindings);
+	bwd_pass_k.createPipeline(m_device, "shaders/attn_scores_grad_k.spv", r);
+	grad_output.ready = true;
+
 	log() << "Attn_Scores startup complete\n";
 }
 
 void Attn_Scores_Module::cleanup_passes()
 {
 	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass_q.cleanup(m_device->getDevice());
+	bwd_pass_k.cleanup(m_device->getDevice());
 }
 
 //============================================================
@@ -117,6 +136,56 @@ void Attn_Scores_Module::dispatch_forward(VkCommandBuffer cmd)
 	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
 }
 
+void Attn_Scores_Module::dispatch_backward_q(VkCommandBuffer cmd)
+{
+	MyDescriptorWriter writer(*bwd_pass_q.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_q.descriptorSets.resize(1);
+	writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass_q.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_q.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_q.pipelineLayout, 0, 1, &bwd_pass_q.descriptorSets[0], 0, 0);
+
+	// dQ_h = dS_h @ K_h — output [M x K] per (batch, head): dispatch (K/16, M/16, B * num_heads)
+	uint32_t wg_x = pushconstants.K / 16;
+	uint32_t wg_y = pushconstants.M / 16;
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "Attn_Scores bwd Q: dispatch ("
+	      << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_q.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
+void Attn_Scores_Module::dispatch_backward_k(VkCommandBuffer cmd)
+{
+	MyDescriptorWriter writer(*bwd_pass_k.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass_k.descriptorSets.resize(1);
+	writer.writeBuffer(0, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, input_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass_k.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass_k.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass_k.pipelineLayout, 0, 1, &bwd_pass_k.descriptorSets[0], 0, 0);
+
+	// dK_h = dS_h^T @ Q_h — output [N x K] per (batch, head): dispatch (K/16, N/16, B * num_heads)
+	uint32_t wg_x = pushconstants.K / 16;
+	uint32_t wg_y = pushconstants.N / 16;
+	uint32_t wg_z = input_dimensions.B * num_heads;
+	log() << "Attn_Scores bwd K: dispatch ("
+	      << wg_x << ", " << wg_y << ", " << wg_z << ")\n";
+
+	vkCmdPushConstants(cmd, bwd_pass_k.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, wg_x, wg_y, wg_z);
+}
+
 //============================================================
 // forward / backward
 //
@@ -132,5 +201,17 @@ void Attn_Scores_Module::forward()
 
 void Attn_Scores_Module::backward()
 {
-	// TODO
+	// dQ_h = dS_h @ K_h / sqrt(K)    → Q slice of grad_output
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_q(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_q.descriptorSets);
+
+	// dK_h = dS_h^T @ Q_h / sqrt(K)  → K slice of grad_output
+	cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward_k(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass_k.descriptorSets);
 }

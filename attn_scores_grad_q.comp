@@ -1,0 +1,66 @@
+#version 450
+
+// Attention scores backward, Q path.
+//   scores_h = Q_h @ K_h^T * (1/sqrt(K))
+//   dQ_h     = dS_h @ K_h  * (1/sqrt(K))      [M x N] @ [N x K] = [M x K]   (MATMUL NN)
+//
+// dS is the gradient w.r.t. the pre-softmax scores (softmax backward output).
+// Masked positions (j > i) need no special handling: softmax backward gives dS = 0 there.
+//
+// Written into the Q slice of grad_qkv: grad_qkv[b, i, h*K + k]
+// One workgroup per (16x16 output tile, batch, head). Dispatch (K/16, M/16, B * num_heads).
+
+layout(std430, binding = 0) readonly  buffer dS_buffer   { float dS[];       };  // [B x H x M x N]
+layout(std430, binding = 1) readonly  buffer QKV_buffer  { float qkv[];      };  // [B x M x 3D]
+layout(std430, binding = 2) writeonly buffer dQKV_buffer { float grad_qkv[]; };  // [B x M x 3D]
+
+layout(push_constant) uniform PushConstants
+{
+	uint M;         // query positions (64)
+	uint N;         // key positions   (64)
+	uint K;         // head_dim = D / num_heads
+	uint D;         // full embed dim
+	uint num_heads;
+} pc;
+
+layout(local_size_x = 256) in;  // 16x16 tile
+
+shared float Tile_A[16][16];
+shared float Tile_B[16][16];
+
+void main()
+{
+	uint r  = gl_LocalInvocationID.x / 16;
+	uint c  = gl_LocalInvocationID.x % 16;
+	uint c0 = gl_WorkGroupID.x * 16;   // k (head dim) tile origin
+	uint r0 = gl_WorkGroupID.y * 16;   // i (query pos) tile origin
+	uint b  = gl_WorkGroupID.z / pc.num_heads;
+	uint h  = gl_WorkGroupID.z % pc.num_heads;
+
+	uint stride  = 3 * pc.D;                                   // floats per token in QKV
+	uint ds_base = (b * pc.num_heads + h) * pc.M * pc.N;
+	uint qkv_b   = b * pc.M * stride;
+	uint k_start = pc.D + h * pc.K;                            // K slice for this head
+
+	float sum = 0.0;
+
+	for (uint t = 0; t < pc.N / 16; t++)
+	{
+		// Tile_A[r][c] = dS_h[r0+r, t*16+c]
+		Tile_A[r][c] = dS[ds_base + (r0 + r) * pc.N + t * 16 + c];
+
+		// Tile_B[r][c] = K_h[t*16+r, c0+c]
+		Tile_B[r][c] = qkv[qkv_b + (t * 16 + r) * stride + k_start + c0 + c];
+
+		barrier();
+
+		for (uint k = 0; k < 16; k++)
+			sum += Tile_A[r][k] * Tile_B[k][c];
+
+		barrier();
+	}
+
+	sum *= inversesqrt(float(pc.K));
+
+	grad_qkv[qkv_b + (r0 + r) * stride + h * pc.K + c0 + c] = sum;
+}
