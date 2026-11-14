@@ -1,0 +1,45 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+// Softmax Gradient over the last dimension (N=64 key positions) for each query row.
+// One workgroup per row, one thread per column.
+// Input/output: [B x num_heads x M x N]
+
+layout(std430, binding = 0) readonly  buffer Output_probs { float output_probs[];  };	//P  = Y [B x H x M x N]
+layout(std430, binding = 1) readonly  buffer Input_grad   { float input_grad[];  };		//dP = dY [B x H x M x N]
+layout(std430, binding = 2) writeonly buffer Output_grad  { float output_grad[];  };	//dS = dX [B x H x M x N]
+
+layout(push_constant) uniform PushConstants
+{
+	uint B;
+	uint num_heads;
+	uint M;   // query positions (64)
+	uint N;   // key positions   (64)
+} pc;
+
+layout(local_size_x = 64) in;  // one thread per key position/column, 64/32 = 2 subgroups
+
+shared float D_i_sg[2];
+shared float D_i;
+
+void main()
+{
+	uint col = gl_LocalInvocationID.x;  // key position [0, N)
+	uint row = gl_WorkGroupID.x;        // flattened [0, B * num_heads * M)
+
+	float p = output_probs[row * N + col];
+	float dp = input_grad[row * N + col];
+	float addend  = p * dp;
+
+	float D_i_sg_val = subgroupAdd(addend);
+	if(subgroupElect())
+		D_i_sg[gl_SubgroupID] = D_i_sg_val;
+	barrier();
+
+	if(col==0)
+		D_i = D_i_sg[0] + D_i_sg[1];
+	barrier();
+
+	output_grad[row * pc.N + col] = p * (dp - D_i);
+}

@@ -61,3 +61,5 @@ C:/VulkanSDK/1.3.268.0/Bin/glslc.exe matmul_grad_w.comp --target-env=vulkan1.3  
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe weighted_sum_V_grad_v.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/weighted_sum_V_grad_v.spv
 C:/VulkanSDK/1.3.268.0/Bin/glslc.exe weighted_sum_V_grad_a.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/weighted_sum_V_grad_a.spv
 
+C:/VulkanSDK/1.3.268.0/Bin/glslc.exe softmax_grad.comp --target-env=vulkan1.3  --target-spv=spv1.4 -o ./shaders/softmax_grad.spv
+

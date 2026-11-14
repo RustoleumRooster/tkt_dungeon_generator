@@ -53,6 +53,7 @@ struct Softmax_Module : public Vulkan_Module
 	};
 
 	Pass fwd_pass;  // softmax.spv
+	Pass bwd_pass;  // softmax_grad.spv — dX = Y * (dY - sum_j(dY * Y))
 
 	virtual void setDimensions() override;
 	virtual void startup() override;
@@ -61,11 +62,12 @@ struct Softmax_Module : public Vulkan_Module
 	virtual void cleanup_passes() override;
 
 	void dispatch_forward(VkCommandBuffer);
+	void dispatch_backward(VkCommandBuffer);
 
 	reflect::input<vkBufferResource>  input_tensor;   // [B x num_heads x M x N]
 	reflect::output<vkBufferResource> output_tensor;  // [B x num_heads x M x N]
-	reflect::input<vkBufferResource>  grad_input;
-	reflect::output<vkBufferResource> grad_output;
+	reflect::input<vkBufferResource>  grad_input;     // dL/dY [B x num_heads x M x N]
+	reflect::output<vkBufferResource> grad_output;    // dL/dX [B x num_heads x M x N]
 
 	REFLECT_VKMOD()
 };

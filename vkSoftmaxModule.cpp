@@ -74,12 +74,22 @@ void Softmax_Module::startup()
 	fwd_pass.createPipeline(m_device, "shaders/softmax.spv", r);
 	output_tensor.ready = true;
 
+	// bwd_pass: output_tensor(0) [Y = softmax(x)], grad_input(1) [dL/dY], grad_output(2) [dL/dX]
+	bwd_pass.bindings.resize(3);
+	bwd_pass.bindings[0] = output_tensor.X->getDescriptorSetLayout(0);
+	bwd_pass.bindings[1] = grad_input.X->getDescriptorSetLayout(1);
+	bwd_pass.bindings[2] = grad_output.X->getDescriptorSetLayout(2);
+	bwd_pass.descriptorSetLayout = new MyDescriptorSetLayout(m_device, bwd_pass.bindings);
+	bwd_pass.createPipeline(m_device, "shaders/softmax_grad.spv", r);
+	grad_output.ready = true;
+
 	log() << "Softmax startup complete\n";
 }
 
 void Softmax_Module::cleanup_passes()
 {
 	fwd_pass.cleanup(m_device->getDevice());
+	bwd_pass.cleanup(m_device->getDevice());
 }
 
 //============================================================
@@ -107,6 +117,28 @@ void Softmax_Module::dispatch_forward(VkCommandBuffer cmd)
 	vkCmdDispatch(cmd, n_WGs, 1, 1);
 }
 
+void Softmax_Module::dispatch_backward(VkCommandBuffer cmd)
+{
+	MyDescriptorWriter writer(*bwd_pass.descriptorSetLayout, *m_DescriptorPool);
+	bwd_pass.descriptorSets.resize(1);
+	writer.writeBuffer(0, output_tensor.X->getDescriptorBufferInfo());
+	writer.writeBuffer(1, grad_input.X->getDescriptorBufferInfo());
+	writer.writeBuffer(2, grad_output.X->getDescriptorBufferInfo());
+	writer.build(bwd_pass.descriptorSets[0]);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bwd_pass.pipeline->getPipeline());
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+		bwd_pass.pipelineLayout, 0, 1, &bwd_pass.descriptorSets[0], 0, 0);
+
+	// one workgroup per row: B * num_heads * M rows total (row-wise dot product needs a reduction)
+	uint32_t n_WGs = pushconstants.B * pushconstants.num_heads * pushconstants.M;
+	log() << "Softmax bwd: " << n_WGs << " workgroups\n";
+
+	vkCmdPushConstants(cmd, bwd_pass.pipelineLayout,
+		VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushconstant_struct), &pushconstants);
+	vkCmdDispatch(cmd, n_WGs, 1, 1);
+}
+
 //============================================================
 // forward / backward
 //
@@ -122,5 +154,9 @@ void Softmax_Module::forward()
 
 void Softmax_Module::backward()
 {
-	// TODO
+	VkCommandBuffer cmd = m_device->beginSingleTimeCommands();
+	dispatch_backward(cmd);
+	m_device->endSingleTimeCommands(cmd);
+	vkDeviceWaitIdle(m_device->getDevice());
+	m_DescriptorPool->freeDescriptorsSets(bwd_pass.descriptorSets);
 }
