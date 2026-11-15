@@ -19,8 +19,24 @@
 namespace
 {
 	const float  EPS       = 1e-2f;  // central-difference step (fp32 GPU math: don't go much smaller)
-	const double TOL       = 5e-2;   // max allowed relative error
-	const double REL_FLOOR = 1e-2;   // denominator floor so ~0 gradients don't blow up the ratio
+	// Pass test: |analytic - numeric| <= ATOL + RTOL * max(|analytic|, |numeric|)
+	// ATOL covers the finite-difference noise floor (~1e-3 measured: fp32 outputs,
+	// low-precision exp/inversesqrt, perturbations that touch most of the output),
+	// which dominates for small gradients such as the branch-only pos_embed grads.
+	const double RTOL      = 5e-2;
+	const double ATOL      = 2e-3;
+	const double REL_FLOOR = 1e-2;   // only for the reported rel err column
+	const bool   VERBOSE   = false;  // true = print every checked entry, false = failures only
+
+	struct Failure
+	{
+		const char* tensor;
+		size_t      index;
+		double      analytic;
+		double      numeric;
+		double      rel;
+	};
+	std::vector<Failure> g_failures;
 
 	size_t n_elems(const TensorDimension& d)
 	{
@@ -71,7 +87,8 @@ namespace
 	                     const std::vector<size_t>& idx)
 	{
 		Result r;
-		printf("\n  %-14s %8s %14s %14s %10s\n", name, "index", "analytic", "numeric", "rel err");
+		if (VERBOSE)
+			printf("\n  %-14s %8s %14s %14s %10s\n", name, "index", "analytic", "numeric", "rel err");
 
 		for (size_t i : idx)
 		{
@@ -85,12 +102,16 @@ namespace
 			double a   = analytic[i];
 			double rel = std::fabs(a - num) / std::max({ std::fabs(a), std::fabs(num), REL_FLOOR });
 
-			bool ok = rel < TOL;
+			bool ok = std::fabs(a - num) <= ATOL + RTOL * std::max(std::fabs(a), std::fabs(num));
 			r.max_rel = std::max(r.max_rel, rel);
 			r.n_fail += ok ? 0 : 1;
 			r.n++;
 
-			printf("  %-14s %8zu %14.6f %14.6f %10.2e %s\n", "", i, a, num, rel, ok ? "" : "  <-- FAIL");
+			if (!ok)
+				g_failures.push_back({ name, i, a, num, rel });
+
+			if (VERBOSE)
+				printf("  %-14s %8zu %14.6f %14.6f %10.2e %s\n", "", i, a, num, rel, ok ? "" : "  <-- FAIL");
 		}
 		return r;
 	}
@@ -112,8 +133,10 @@ bool run_attention_gradient_check(Vulkan_App* vulkan)
 	const u32 B = 2, ROWS = 8, COLS = 8, D = 128;
 	const u32 T = ROWS * COLS;
 
+	g_failures.clear();
+
 	printf("\n==================== Attention_Block gradient check ====================\n");
-	printf("  B=%u T=%u D=%u   eps=%g  tol=%g\n", B, T, D, EPS, TOL);
+	printf("  B=%u T=%u D=%u   eps=%g  rtol=%g  atol=%g\n", B, T, D, EPS, RTOL, ATOL);
 
 	//--------------------------------------------------------
 	// Build workflow
@@ -269,6 +292,15 @@ bool run_attention_gradient_check(Vulkan_App* vulkan)
 		       r.second.max_rel, r.second.n_fail ? "FAIL" : "PASS");
 		all_ok &= (r.second.n_fail == 0);
 	}
+	if (!g_failures.empty())
+	{
+		printf("\n  FAILURES (%zu)\n", g_failures.size());
+		printf("  %-12s %8s %14s %14s %12s %10s\n", "tensor", "index", "analytic", "numeric", "abs err", "rel err");
+		for (const Failure& f : g_failures)
+			printf("  %-12s %8zu %14.6f %14.6f %12.2e %10.2e\n", f.tensor, f.index,
+			       f.analytic, f.numeric, std::fabs(f.analytic - f.numeric), f.rel);
+	}
+
 	printf("\n  OVERALL: %s\n", all_ok ? "PASS" : "FAIL");
 	printf("========================================================================\n\n");
 

@@ -37,8 +37,8 @@ struct Workblock_Module : public Vulkan_Module
 
 	virtual reflect::input<vkBufferResource>& head_input() { return input_tensor; }
 	virtual reflect::output<vkBufferResource>& tail_output() { return output_tensor; }
-	virtual reflect::input<vkBufferResource>& gradient_input() { return input_tensor; }
-	virtual reflect::output<vkBufferResource>& gradient_output() { return output_tensor; }
+	virtual reflect::input<vkBufferResource>& gradient_input() { return input_grad; }
+	virtual reflect::output<vkBufferResource>& gradient_output() { return output_grad; }
 	virtual void backward();
 
 	// Override to fan an incoming output to all inputs that need it (e.g. head + skip).

@@ -482,9 +482,11 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
 		if (!td) continue;
 
-		// Note: Workblock modules are NOT skipped here. Pass 2 allocates slices for
-		// their own output_tensor / output_grad too, so they must be budgeted or the
-		// later feature slices run past the end of feature_buffer.
+		// Workblocks own no memory: their output_tensor / output_grad are never sized
+		// or consumed (blocks expose submodule outputs via tail_output() and
+		// gradient_output()). Must match the same skip in pass 2.
+		if (td->inherited_type == &Workblock_Module::Reflection)
+			continue;
 
 		for (reflect::Member& m : td->members)
 		{
@@ -577,6 +579,10 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 		Vulkan_Module* mod = ref.X;
 		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
 		if (!td) continue;
+
+		// Workblocks own no memory (see pass 1). Their output_tensor / output_grad keep X = NULL.
+		if (td->inherited_type == &Workblock_Module::Reflection)
+			continue;
 
 		for (reflect::Member& m : td->members)
 		{
