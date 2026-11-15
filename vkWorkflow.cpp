@@ -482,8 +482,9 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
 		if (!td) continue;
 
-		if (td->inherited_type == &Workblock_Module::Reflection)
-			continue;
+		// Note: Workblock modules are NOT skipped here. Pass 2 allocates slices for
+		// their own output_tensor / output_grad too, so they must be budgeted or the
+		// later feature slices run past the end of feature_buffer.
 
 		for (reflect::Member& m : td->members)
 		{
