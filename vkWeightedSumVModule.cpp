@@ -21,8 +21,9 @@ REFLECT_VKMOD_BEGIN(WeightedSumV_Module)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	// Backward Pass
 	REFLECT_VKMOD_GRAD(grad_input)
-	REFLECT_VKMOD_GRAD(grad_scores)
-	REFLECT_VKMOD_GRAD(grad_qkv)
+	REFLECT_VKMOD_GRAD(grad_scores) //Normal gradient path
+	REFLECT_VKMOD_MEMBER(grad_qkv)  //Alternate gradient path -- declared as an "other" buffer,
+									//so sits outside the normal ping-pong framework
 REFLECT_VKMOD_END()
 
 //============================================================
@@ -103,6 +104,9 @@ void WeightedSumV_Module::startup()
 	bwd_pass_a.createPipeline(m_device, "shaders/weighted_sum_V_grad_a.spv", r);
 
 	log() << "WeightedSumV startup complete\n";
+
+	grad_scores.ready = true;
+	grad_qkv.ready = true;
 }
 
 void WeightedSumV_Module::cleanup_passes()

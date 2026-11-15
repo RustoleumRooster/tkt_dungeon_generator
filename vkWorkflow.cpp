@@ -544,8 +544,6 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 	VkDeviceSize      param_t          = 0;
 	VkDeviceSize      other_t          = 0;
 	int               grad_ping        = 0;     // alternates 0/1 to assign ping vs pong buffer
-	vkBufferResource* last_grad_buf    = NULL;  // buffer used by the most recent grad allocation
-	VkDeviceSize      last_grad_sz     = 0;     // aligned size of that allocation
 
 	for (VkMod_Reference& ref : Modules)
 	{
@@ -573,27 +571,15 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
-					// Special case: Skip_Module writes grad_output_a and grad_output_b in
-					// the same dispatch. Pack grad_output_b immediately after grad_output_a
-					// in the same buffer so both outputs share one ping/pong slot and the
-					// input (grad_input) stays on the opposite buffer.
-					if (td == &Skip_Module::Reflection && strcmp(m.name, "grad_output_b") == 0)
-					{
-						assert(last_grad_buf && "Skip grad_output_b has no preceding grad_output_a");
-						assert(last_grad_sz + sz <= grad_total && "Skip grad_output_b overflows grad_tmp buffer");
-						out->X = vulkan->create_buffer_slice(last_grad_buf, last_grad_sz, sz);
-					}
-					else
-					{
-						// Ping-pong: alternate between two same-sized grad buffers so that
-						// consecutive backward steps never bind the same VkBuffer for both
-						// read (grad_input) and write (grad_output) in the same dispatch.
-						vkBufferResource* buf = (grad_ping % 2 == 0) ? grad_tmp_buffer : grad_tmp_buffer_b;
-						out->X = vulkan->create_buffer_slice(buf, 0, sz);
-						last_grad_buf = buf;
-						last_grad_sz  = sz;
-						grad_ping++;
-					}
+					// Ping-pong: alternate between two same-sized grad buffers so that
+					// consecutive backward steps never bind the same VkBuffer for both
+					// read (grad_input) and write (grad_output) in the same dispatch.
+					// Gradients that must outlive the next backward step (e.g. Skip's
+					// identity-path grad_output_b, WeightedSumV's grad_qkv) are declared
+					// as non-GRAD members so they land in other_buffer instead.
+					vkBufferResource* buf = (grad_ping % 2 == 0) ? grad_tmp_buffer : grad_tmp_buffer_b;
+					out->X = vulkan->create_buffer_slice(buf, 0, sz);
+					grad_ping++;
 				}
 				else if (m.flags & REFLECT_VKMOD_COMPONENT_FEAT)
 				{

@@ -63,12 +63,14 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	projection_o->pushconstants    = { T, D, D };
 
 	// --- Skip: x + projection_o(attention(norm(pos_embed(x)))) ---
-	// skip->input_a = raw x (connected externally via connect_input)
-	// skip->input_b = projection_o output
+	// skip->input_a = projection_o output (branch)
+	// skip->input_b = raw x (identity, connected externally via connect_input)
+	// Same convention as ResBlock: b is always the identity path, so its gradient
+	// (grad_output_b) lives outside the ping-pong and survives until add_grad.
 	skip = new Skip_Module();
 	skip->input_dimensions = { B, T, 1, D };
 
-	// add_grad sums the two backward paths: identity (skip->grad_output_a) and
+	// add_grad sums the two backward paths: identity (skip->grad_output_b) and
 	// attention (pos_embed->grad_output). Inserted at index 0 so it runs last in backward.
 	add_grad = new Add_Grad_Module();
 	add_grad->input_dimensions = { B, T, 1, D };
@@ -84,7 +86,7 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	modules.push_back(skip);
 
 	// Forward chain: input → pos_embed → layer_norm → qkv → attn_scores → softmax → weighted_sum_v → projection_o → skip
-	// raw input also fans out to skip->input_a via connect_input
+	// raw input also fans out to skip->input_b via connect_input
 	// (pos_embed output [B,R,C,D] and layer_norm input [B,T,1,D] are the
 	//  same byte size — T=R*C — so the buffer is safely reinterpreted)
 	reflect::connect(&pos_embed->output_tensor,        &layer_norm->input_tensor);
@@ -94,13 +96,13 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	reflect::connect(&qkv->output_tensor,              &weighted_sum_v->qkv_tensor);
 	reflect::connect(&softmax->output_tensor,          &weighted_sum_v->scores_tensor);
 	reflect::connect(&weighted_sum_v->output_tensor,   &projection_o->input_tensor);
-	reflect::connect(&projection_o->output_tensor,     &skip->input_b);
+	reflect::connect(&projection_o->output_tensor,     &skip->input_a);
 
 	// Backward chain
-	// skip->grad_output_b: gradient through the attention path
-	// skip->grad_output_a: gradient through the identity path
+	// skip->grad_output_a: gradient through the attention path (ping-pong)
+	// skip->grad_output_b: gradient through the identity path (other buffer)
 	// add_grad merges both into the upstream gradient
-	reflect::connect(&skip->grad_output_b,          &projection_o->grad_input);
+	reflect::connect(&skip->grad_output_a,          &projection_o->grad_input);
 	reflect::connect(&projection_o->grad_output,    &weighted_sum_v->grad_input);
 	reflect::connect(&weighted_sum_v->grad_scores,  &softmax->grad_input);		   //normal gradient path
 	reflect::connect(&weighted_sum_v->grad_qkv,		&attn_scores->grad_qkv_input); //alternate gradient path
@@ -109,7 +111,7 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	reflect::connect(&qkv->grad_output,             &layer_norm->grad_input);
 	reflect::connect(&layer_norm->grad_output,      &pos_embed->grad_input);
 
-	reflect::connect(&skip->grad_output_a,          &add_grad->grad_input_a);
+	reflect::connect(&skip->grad_output_b,          &add_grad->grad_input_a);
 	reflect::connect(&pos_embed->grad_output,       &add_grad->grad_input_b);
 
 	for (Vulkan_Module* mod : modules)
@@ -128,5 +130,5 @@ reflect::output<vkBufferResource>& Attention_Block::gradient_output() { return a
 void Attention_Block::connect_input(reflect::output<vkBufferResource>* out)
 {
 	reflect::connect(out, &pos_embed->input_tensor);
-	reflect::connect(out, &skip->input_a);
+	reflect::connect(out, &skip->input_b);
 }

@@ -29,8 +29,10 @@ REFLECT_VKMOD_BEGIN(Skip_Module)
 	REFLECT_VKMOD_FEAT(output)
 //Backward Pass
 	REFLECT_VKMOD_GRAD(grad_input)
-	REFLECT_VKMOD_GRAD(grad_output_a)
-	REFLECT_VKMOD_GRAD(grad_output_b)
+	REFLECT_VKMOD_GRAD(grad_output_a)	//branch path -- normal ping-pong gradient
+	REFLECT_VKMOD_MEMBER(grad_output_b)	//identity path -- declared as an "other" buffer so it
+										//survives the whole branch backward until Add_Grad reads it.
+										//Convention: input_b / grad_output_b is always the identity.
 REFLECT_VKMOD_END()
 
 //============================================================
