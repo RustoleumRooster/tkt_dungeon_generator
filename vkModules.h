@@ -394,6 +394,7 @@ namespace reflect
 		Vulkan_Module* owner = NULL;
 		std::vector<input_type*> dest_inputs;	
 		TensorDimension dimensions; //not reflected
+		input_type* in_place_input = NULL;
 		bool ready = false;			
 
 		virtual void signal() = 0;

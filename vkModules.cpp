@@ -298,7 +298,10 @@ void Vulkan_Module::set_ptrs()
 			if (m.in_place_output != 0xFF)
 			{
 				reflect::Member& forward_m = tD->members[m.in_place_output];
-				in->in_place_output = (reflect::output_type*)forward_m.get(this);
+				reflect::output_type* out = (reflect::output_type*)forward_m.get(this);
+
+				in->in_place_output = out;
+				out->in_place_input = in;
 			}
 		}
 		else if (m_tD->inherited_type == output_tD)

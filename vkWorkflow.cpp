@@ -467,6 +467,11 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 			if (m_tD->inherited_type == &reflect::output_type::Reflection)
 			{
 				reflect::output_type* out = (reflect::output_type*)m.get(mod);
+
+				//in-place outputs don't need to be counted
+				if (out->in_place_input != NULL)
+					continue;
+
 				VkDeviceSize sz = (m.flags & REFLECT_VKMOD_COMPONENT_UINT_TYPE)
 				                ? out->aligned_size<u32>(alignment)
 				                : out->aligned_size<f32>(alignment);
@@ -560,6 +565,12 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				                ? out->aligned_size<u32>(alignment)
 				                : out->aligned_size<f32>(alignment);
 
+				//in-place outputs don't need their own memory slices
+				if (out->in_place_input != NULL)
+				{
+					continue;
+				}
+
 				if (m.flags & REFLECT_VKMOD_COMPONENT_GRAD)
 				{
 					// Special case: Skip_Module writes grad_output_a and grad_output_b in
@@ -634,21 +645,58 @@ void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)
 				assert(src->X != nullptr && "plan_memory pass 3: src_output has no buffer");
 
 				in->X = src->X;
-			}/* BACKWARD PASS TEMPORARILY DISABLED
+			}
 			else if (m_tD->inherited_type == &reflect::input_type::Reflection &&
 				(m.flags & REFLECT_VKMOD_COMPONENT_GRAD))
 			{
 				reflect::input<vkBufferResource>* in = (reflect::input<vkBufferResource>*)m.get(mod);
 
-				assert(in->src_output != nullptr && "plan_memory pass 3: input gradient not connected");
+				//assert(in->src_output != nullptr && "plan_memory pass 3: input gradient not connected");
 
 				reflect::output<vkBufferResource>* src = (reflect::output<vkBufferResource>*)in->src_output;
 
-				assert(src->X != nullptr && "plan_memory pass 3: gradient src_output has no buffer");
-
-				in->X = src->X;
-			}*/
+				//assert(src->X != nullptr && "plan_memory pass 3: gradient src_output has no buffer");
+				if(src)
+					in->X = src->X;
+			}
 		}
-
 	}
+
+	//Special handling for in-place outputs. Support a 2-way gradient path for the QKV gradient,
+	//which gets written by two different modules. Doesn't support long connections.
+	for (VkMod_Reference& ref : Modules)
+	{
+		Vulkan_Module* mod = ref.X;
+		reflect::TypeDescriptor_Struct* td = mod->GetDynamicReflection();
+		if (!td) continue;
+
+		for (reflect::Member& m : td->members)
+		{
+			reflect::TypeDescriptor_Struct* m_tD = (reflect::TypeDescriptor_Struct*)m.type;
+			if (!m_tD) continue;
+
+			if (m_tD == &reflect::output<vkBufferResource>::Reflection)
+			{
+				reflect::output<vkBufferResource>* out = (reflect::output<vkBufferResource>*)m.get(mod);
+
+				if (out->in_place_input != NULL)
+				{
+					reflect::input<vkBufferResource>* in_buf_resource = (reflect::input<vkBufferResource>*)(out->in_place_input);
+					out->X = in_buf_resource->X;
+
+					assert(in_buf_resource->X && "in-place src has no buffer");
+					assert(in_buf_resource->src_output->size() >= out->size() && "in-place buffer too small");
+
+					if (out->dest_inputs.size() > 0)
+					{
+						for (auto& dest : out->dest_inputs)
+						{
+							((reflect::input<vkBufferResource>*)(dest))->X = out->X;
+						}
+					}
+				}
+			}
+		}
+	}
+
 }

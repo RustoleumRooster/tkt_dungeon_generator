@@ -20,7 +20,9 @@ REFLECT_VKMOD_BEGIN(Attn_Scores_Module)
 	REFLECT_VKMOD_FEAT(output_tensor)
 	// Backward Pass
 	REFLECT_VKMOD_GRAD(grad_input)
+	REFLECT_VKMOD_GRAD(grad_qkv_input)
 	REFLECT_VKMOD_GRAD(grad_output)
+	REFLECT_VKMOD_MEMBER_OUTPUT_IN_PLACE(grad_qkv_input,grad_output)
 REFLECT_VKMOD_END()
 
 //============================================================

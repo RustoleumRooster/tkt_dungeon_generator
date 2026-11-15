@@ -96,13 +96,14 @@ void Attention_Block::build_workflow(std::vector<Vulkan_Module*>& append_list)
 	reflect::connect(&weighted_sum_v->output_tensor,   &projection_o->input_tensor);
 	reflect::connect(&projection_o->output_tensor,     &skip->input_b);
 
-	// Backward chain (stubs — most backward passes not yet implemented)
+	// Backward chain
 	// skip->grad_output_b: gradient through the attention path
 	// skip->grad_output_a: gradient through the identity path
 	// add_grad merges both into the upstream gradient
 	reflect::connect(&skip->grad_output_b,          &projection_o->grad_input);
 	reflect::connect(&projection_o->grad_output,    &weighted_sum_v->grad_input);
-	reflect::connect(&weighted_sum_v->grad_scores,  &softmax->grad_input);
+	reflect::connect(&weighted_sum_v->grad_scores,  &softmax->grad_input);		   //normal gradient path
+	reflect::connect(&weighted_sum_v->grad_qkv,		&attn_scores->grad_qkv_input); //alternate gradient path
 	reflect::connect(&softmax->grad_output,         &attn_scores->grad_input);
 	reflect::connect(&attn_scores->grad_output,     &qkv->grad_input);
 	reflect::connect(&qkv->grad_output,             &layer_norm->grad_input);

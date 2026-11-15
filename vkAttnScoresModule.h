@@ -74,6 +74,7 @@ struct Attn_Scores_Module : public Vulkan_Module
 	reflect::output<vkBufferResource> output_tensor;  // scores [B x num_heads x M x N]
 	reflect::input<vkBufferResource>  grad_input;     // dS (pre-softmax score grad) [B x num_heads x M x N]
 	reflect::output<vkBufferResource> grad_output;    // dQKV [B x M x 3D] — Q and K slices written here
+	reflect::input<vkBufferResource>  grad_qkv_input; // in-place dQKV buffer to write to
 
 	REFLECT_VKMOD()
 };
