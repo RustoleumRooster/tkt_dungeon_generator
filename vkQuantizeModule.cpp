@@ -276,15 +276,7 @@ void Quantize_Module::reset_dead_codes()
 	u32 HW          = ema_pushconstants.HW;
 
 	// 1. Read ema_count back from GPU
-	VkDeviceSize count_bytes = K * sizeof(float);
-	std::vector<float> counts(K);
-	{
-		MyBufferObject staging(m_device, count_bytes, 1,
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-		m_device->copyBuffer(ema_count.X->Buffer, staging.getBuffer(), count_bytes);
-		staging.readFromBuffer(counts.data());
-	}
+	std::vector<float> counts = download_from_buffer(ema_count.X, K);
 
 	// 2. Find dead codes
 	std::vector<u32> dead;
@@ -297,34 +289,9 @@ void Quantize_Module::reset_dead_codes()
 	log() << "reset_dead_codes: " << dead.size() << " / " << K << " below threshold\n";
 
 	// 3. Read z_e, codebook, and ema_sum from GPU
-	VkDeviceSize ze_bytes = (VkDeviceSize)n_positions * D * sizeof(float);
-	VkDeviceSize cb_bytes = (VkDeviceSize)K * D * sizeof(float);
-
-	std::vector<float> ze(n_positions * D);
-	std::vector<float> codebook_data(K * D);
-	std::vector<float> ema_sum_data(K * D);
-
-	{
-		MyBufferObject staging(m_device, ze_bytes, 1,
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-		m_device->copyBuffer(input_tensor.X->Buffer, staging.getBuffer(), ze_bytes);
-		staging.readFromBuffer(ze.data());
-	}
-	{
-		MyBufferObject staging(m_device, cb_bytes, 1,
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-		m_device->copyBuffer(codebook.X->Buffer, staging.getBuffer(), cb_bytes);
-		staging.readFromBuffer(codebook_data.data());
-	}
-	{
-		MyBufferObject staging(m_device, cb_bytes, 1,
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
-		m_device->copyBuffer(ema_sum.X->Buffer, staging.getBuffer(), cb_bytes);
-		staging.readFromBuffer(ema_sum_data.data());
-	}
+	std::vector<float> ze            = download_from_buffer(input_tensor.X, (size_t)n_positions * D);
+	std::vector<float> codebook_data = download_from_buffer(codebook.X,     (size_t)K * D);
+	std::vector<float> ema_sum_data  = download_from_buffer(ema_sum.X,      (size_t)K * D);
 
 	// 4. Overwrite each dead code with a randomly sampled z_e vector
 	for (u32 k : dead)

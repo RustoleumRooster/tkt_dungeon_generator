@@ -461,6 +461,7 @@ vkBufferResource* Vulkan_App::create_buffer_slice(vkBufferResource* pool, VkDevi
 	slice->Buffer              = pool->Buffer;
 	slice->BufferMemory        = pool->BufferMemory;
 	slice->BufferInfo.buffer   = pool->Buffer;
+	slice->offset              = offset;
 	slice->BufferInfo.offset   = offset;
 	slice->BufferInfo.range    = size;
 	slice->range               = size;
@@ -650,9 +651,8 @@ VkDescriptorSetLayoutBinding vkBufferResource::getDescriptorSetLayout(u32 bindin
 
 VkDescriptorBufferInfo* vkBufferResource::getDescriptorBufferInfo()
 {
-	//VkDescriptorBufferInfo BufferInfo{};
 	BufferInfo.buffer = Buffer;
-	BufferInfo.offset = 0;
+	BufferInfo.offset = offset;		// slices bind at their position in the pool
 	BufferInfo.range = used;
 
 	return &BufferInfo;
@@ -908,9 +908,30 @@ void Vulkan_Module::read_results()
 void Vulkan_Module::upload_to_buffer(vkBufferResource* buf, const std::vector<float>& data)
 {
 	VkDeviceSize bytes = data.size() * sizeof(float);
+	assert(bytes <= buf->range && "upload_to_buffer: data larger than destination buffer/slice");
+
 	MyBufferObject staging(m_device, bytes, 1,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
 	staging.writeToBuffer((void*)data.data(), bytes);
-	m_device->copyBuffer(staging.getBuffer(), buf->Buffer, bytes);
+	m_device->copyBuffer(staging.getBuffer(), buf->Buffer, bytes, 0, buf->offset);
+}
+
+std::vector<float> Vulkan_Module::download_from_buffer(vkBufferResource* buf, size_t n_floats)
+{
+	if (n_floats == 0)
+		n_floats = buf->range / sizeof(float);
+
+	VkDeviceSize bytes = n_floats * sizeof(float);
+	assert(bytes <= buf->range && "download_from_buffer: read larger than source buffer/slice");
+
+	std::vector<float> data(n_floats);
+
+	MyBufferObject staging(m_device, bytes, 1,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+	m_device->copyBuffer(buf->Buffer, staging.getBuffer(), bytes, buf->offset, 0);
+	staging.readFromBuffer(data.data());
+
+	return data;
 }

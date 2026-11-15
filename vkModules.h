@@ -280,7 +280,8 @@ struct vkBufferResource : public vkMemoryResource
 	VkDeviceMemory BufferMemory;
 	u32 range = 0;
 	u32 used = 0;
-	VkDescriptorBufferInfo BufferInfo;
+	VkDeviceSize offset = 0; // byte offset into Buffer (non-zero only for slices of a pool)
+	VkDescriptorBufferInfo BufferInfo{};
 	bool is_slice = false; // if true, Buffer/BufferMemory are owned by a pool — do not destroy
 
 	vkBufferResource() : vkMemoryResource() {}
@@ -667,7 +668,11 @@ public:
 	virtual void initialize_parameters() {}
 
 	// Upload a CPU float buffer into a device-local vkBufferResource via staging.
+	// Respects slice offsets.
 	void upload_to_buffer(vkBufferResource* buf, const std::vector<float>& data);
+	// Read a device-local vkBufferResource back to the CPU via staging.
+	// n_floats = 0 reads the whole buffer/slice. Respects slice offsets.
+	std::vector<float> download_from_buffer(vkBufferResource* buf, size_t n_floats = 0);
 	//bool load_resources();
 	bool ready_forward();
 	bool ready_backward();
@@ -768,8 +773,24 @@ public:
 
 	void make_default_workflow();
 	void make_transformer_workflow();
-	void initialize_and_run(Vulkan_App* vulkan);
 	void plan_memory(Vulkan_App* vulkan);
+
+	// Setup: initialize modules, plan memory, init parameters, startup passes.
+	void initialize(Vulkan_App* vulkan);
+	// One forward pass over all top-level modules.
+	void forward_step();
+	// One backward pass over all top-level modules (reverse order).
+	// run_optimizer = false skips the Optimization_Module, so parameters
+	// are left untouched (needed for gradient checking).
+	void backward_step(bool run_optimizer = true);
+	// forward_step + backward_step with Adam bias-correction bookkeeping.
+	void train_step();
+	// Tear down passes and the Vulkan app.
+	void shutdown(Vulkan_App* vulkan);
+	// initialize, n_passes x train_step, shutdown.
+	void initialize_and_run(Vulkan_App* vulkan, int n_passes = 1);
+
+	int step_count = 0;
 
 	void save();
 	void load();

@@ -308,7 +308,7 @@ void Vulkan_Workflow::make_transformer_workflow()
 		items.push_back(ref.X);
 }
 
-void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
+void Vulkan_Workflow::initialize(Vulkan_App* vulkan)
 {
 	for (VkMod_Reference& mod : Modules)
 	{
@@ -361,62 +361,69 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 			mod.X->startup();
 	}
 
-	const int n_passes = 1;
+	step_count = 0;
+}
 
-	for (int pass = 0; pass < n_passes; pass++)
+void Vulkan_Workflow::forward_step()
+{
+	for (VkMod_Reference& mod : Modules)
+		mod.X->forward_pass_complete = false;
+
+	for (VkMod_Reference& mod : Modules)
 	{
-		std::cout << "\n[Pass " << pass + 1 << " / " << n_passes << "]\n";
-
-		// Reset completion flags so ready_forward/ready_backward pass again.
-		for (VkMod_Reference& mod : Modules)
+		if (mod.X->is_submodule == false)
 		{
-			mod.X->forward_pass_complete  = false;
-			mod.X->backward_pass_complete = false;
+			assert(mod.X->ready_forward() && "Module not ready...");
+			auto t0 = std::chrono::high_resolution_clock::now();
+			mod.X->forward();
+			auto t1 = std::chrono::high_resolution_clock::now();
+			mod.X->elapsed_forward = std::chrono::duration<float, std::milli>(t1 - t0).count();
+			mod.X->total_forward  += mod.X->elapsed_forward;
+			mod.X->forward_pass_complete = true;
 		}
+	}
+}
 
-		// Advance Adam bias-correction terms each step after the first.
-		if (optimizer && pass > 0)
-		{
-			optimizer->pushconstants.B1_t *= 0.9f;
-			optimizer->pushconstants.B2_t *= 0.999f;
-		}
+void Vulkan_Workflow::backward_step(bool run_optimizer)
+{
+	for (VkMod_Reference& mod : Modules)
+		mod.X->backward_pass_complete = false;
 
-		auto pass_start = std::chrono::high_resolution_clock::now();
+	for (int i = (int)Modules.size() - 1; i >= 0; i--)
+	{
+		Vulkan_Module* mod = Modules[i].X;
+		if (mod->is_submodule)
+			continue;
+		if (!run_optimizer && mod == (Vulkan_Module*)optimizer)
+			continue;
 
-		for (VkMod_Reference& mod : Modules)
-		{
-			if (mod.X->is_submodule == false)
-			{
-				assert(mod.X->ready_forward() && "Module not ready...");
-				auto t0 = std::chrono::high_resolution_clock::now();
-				mod.X->forward();
-				auto t1 = std::chrono::high_resolution_clock::now();
-				mod.X->elapsed_forward = std::chrono::duration<float, std::milli>(t1 - t0).count();
-				mod.X->total_forward  += mod.X->elapsed_forward;
-				mod.X->forward_pass_complete = true;
-			}
-		}
-		if(false)	//backward pass disabled
-		for (int i = (int)Modules.size() - 1; i >= 0; i--)
-		{
-			Vulkan_Module* mod = Modules[i].X;
-			if (mod->is_submodule == false)
-			{
-				assert(mod->ready_backward() && "Module not ready for backward...");
-				auto t0 = std::chrono::high_resolution_clock::now();
-				mod->backward();
-				auto t1 = std::chrono::high_resolution_clock::now();
-				mod->elapsed_backward = std::chrono::duration<float, std::milli>(t1 - t0).count();
-				mod->total_backward  += mod->elapsed_backward;
-				mod->backward_pass_complete = true;
-			}
-		}
+		assert(mod->ready_backward() && "Module not ready for backward...");
+		auto t0 = std::chrono::high_resolution_clock::now();
+		mod->backward();
+		auto t1 = std::chrono::high_resolution_clock::now();
+		mod->elapsed_backward = std::chrono::duration<float, std::milli>(t1 - t0).count();
+		mod->total_backward  += mod->elapsed_backward;
+		mod->backward_pass_complete = true;
+	}
+}
 
-		auto pass_end = std::chrono::high_resolution_clock::now();
-		float pass_ms = std::chrono::duration<float, std::milli>(pass_end - pass_start).count();
-		std::cout << "[Pass " << pass + 1 << " complete] " << pass_ms << " ms, (average " << pass_ms / float(pass+1) <<" ms)\n";
+void Vulkan_Workflow::train_step()
+{
+	// Advance Adam bias-correction terms each step after the first.
+	if (optimizer && step_count > 0)
+	{
+		optimizer->pushconstants.B1_t *= 0.9f;
+		optimizer->pushconstants.B2_t *= 0.999f;
 	}
 
+	forward_step();
+	backward_step(true);
+
+	step_count++;
+}
+
+void Vulkan_Workflow::shutdown(Vulkan_App* vulkan)
+{
 	for (VkMod_Reference& mod : Modules)
 	{
 		//if (!mod.X->is_submodule)
@@ -424,7 +431,26 @@ void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan)
 	}
 
 	vulkan->cleanup();
+}
 
+void Vulkan_Workflow::initialize_and_run(Vulkan_App* vulkan, int n_passes)
+{
+	initialize(vulkan);
+
+	for (int pass = 0; pass < n_passes; pass++)
+	{
+		std::cout << "\n[Pass " << pass + 1 << " / " << n_passes << "]\n";
+
+		auto pass_start = std::chrono::high_resolution_clock::now();
+
+		train_step();
+
+		auto pass_end = std::chrono::high_resolution_clock::now();
+		float pass_ms = std::chrono::duration<float, std::milli>(pass_end - pass_start).count();
+		std::cout << "[Pass " << pass + 1 << " complete] " << pass_ms << " ms\n";
+	}
+
+	shutdown(vulkan);
 }
 
 void Vulkan_Workflow::plan_memory(Vulkan_App* vulkan)

@@ -116,7 +116,8 @@ public:
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 
-	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size,
+	                VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void copyTensorToImageArray(VkBuffer buffer, VkImage image, TensorDimension dim);
