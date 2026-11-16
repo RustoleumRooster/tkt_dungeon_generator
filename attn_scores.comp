@@ -47,8 +47,9 @@ void main()
 		// Load Q tile: Q_h[r0+r, t*16+c]
 		Tile_Q[r][c] = qkv[b * pc.M * stride + (r0 + r) * stride + q_start + t * 16 + c];
 
-		// Load K tile TRANSPOSED: K_h^T[t*16+r, c0+c] = K_h[c0+c, t*16+r]
-		Tile_K[r][c] = qkv[b * pc.M * stride + (r0 + r) * stride + k_start + t * 16 + c];
+		// Load K tile: Tile_K[r][c] = K_h[c0+r, t*16+c]  (key rows come from the j tile, c0)
+		// The inner loop reads Tile_K[c][k], i.e. K_h[c0+c, t*16+k], giving Q_i . K_j
+		Tile_K[r][c] = qkv[b * pc.M * stride + (c0 + r) * stride + k_start + t * 16 + c];
 
 		barrier();
 
